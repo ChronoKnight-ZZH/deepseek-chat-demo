@@ -297,6 +297,92 @@
   }
 }
 
+/* 模型选择：沿用开关胶囊样式，右侧箭头随展开状态翻转 */
+.modelToggle {
+  padding-right: 9px;
+}
+
+.modelLabel {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modelArrow {
+  display: flex;
+  margin-left: -1px;
+  color: var(--dsw-alias-label-secondary);
+  transition: transform var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+.modelToggle[aria-expanded='true'] .modelArrow {
+  transform: rotate(180deg);
+}
+
+/* 与页面主题一致的下拉菜单：菜单底色、圆角、阴影与设置里的选择器相同 */
+.modelMenu {
+  position: fixed;
+  z-index: 950;
+  box-sizing: border-box;
+  width: 272px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  background: var(--dsw-specific-menu);
+  box-shadow:
+    0 0 1px 0 rgba(0, 0, 0, 0.2),
+    0 0 4px 0 rgba(0, 0, 0, 0.02),
+    0 12px 32px 0 rgba(0, 0, 0, 0.08);
+}
+
+.modelOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--ds-transition-duration) var(--ds-ease-in-out);
+
+  &:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.modelOptionText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.modelOptionName {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.modelOptionDescription {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-caption);
+}
+
+.modelOptionSelected .modelOptionName {
+  color: var(--dsw-alias-brand-text);
+}
+
+.modelCheck {
+  display: flex;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--dsw-alias-brand-text);
+}
+
 .right {
   display: flex;
   flex-shrink: 0;

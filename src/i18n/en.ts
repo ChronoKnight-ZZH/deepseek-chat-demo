@@ -143,6 +143,12 @@ export const en = {
   thinkingSwitch: 'DeepThink',
   deactivatedSearchTooltip: 'Search the web when necessary',
   search: 'Search',
+  modelSelectLabel: 'Select model',
+  modelDeepseekFlash: 'DeepSeek Flash',
+  modelDeepseekFlashDescription: 'Faster responses for everyday chats and light tasks',
+  modelDeepseekV4Pro: 'DeepSeek V4 Pro',
+  modelDeepseekV4ProDescription:
+    'Stronger reasoning and writing for complex questions and long text',
   uploadFile: 'Upload files',
   chatInputStopButtonTooltip: 'Stop',
   uploadMaxMBSize: 'File exceeds the size limit ({size} MB). Please adjust and try again.',

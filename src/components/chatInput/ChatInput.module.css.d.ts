@@ -17,6 +17,16 @@ declare const styles: {
   readonly "toggleLabel": string;
   readonly "toggle": string;
   readonly "selected": string;
+  readonly "modelToggle": string;
+  readonly "modelLabel": string;
+  readonly "modelArrow": string;
+  readonly "modelMenu": string;
+  readonly "modelOption": string;
+  readonly "modelOptionText": string;
+  readonly "modelOptionName": string;
+  readonly "modelOptionDescription": string;
+  readonly "modelOptionSelected": string;
+  readonly "modelCheck": string;
   readonly "right": string;
   readonly "sendButton": string;
   readonly "disabled": string;

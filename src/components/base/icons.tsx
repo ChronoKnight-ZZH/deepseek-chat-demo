@@ -193,6 +193,19 @@ export const IconMenuOutline20 = () => (
   </svg>
 )
 
+export const IconModelOutline14 = () => (
+  <svg width={14} height={14} viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M6.2 1.6C6.6 4.2 7.9 5.5 10.5 5.9C7.9 6.3 6.6 7.6 6.2 10.2C5.8 7.6 4.5 6.3 1.9 5.9C4.5 5.5 5.8 4.2 6.2 1.6Z"
+      fill="currentColor"
+    />
+    <path
+      d="M11 8.6C11.2 9.9 11.9 10.6 13.2 10.8C11.9 11 11.2 11.7 11 13C10.8 11.7 10.1 11 8.8 10.8C10.1 10.6 10.8 9.9 11 8.6Z"
+      fill="currentColor"
+    />
+  </svg>
+)
+
 export const IconNewChatOutline20 = () => (
   <svg width={20} height={20} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path

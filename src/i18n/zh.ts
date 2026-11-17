@@ -96,6 +96,7 @@ export const zh = {
   settingsSystemPromptDescription: '开启后随每次对话发送，可自定义助手的身份与行为。',
   settingsSystemPromptPlaceholder: '输入系统提示词',
   settingsSystemPromptEnable: '启用系统提示词',
+  imagePreview: '图片预览',
   settingDialogAsideGeneralOptionLabel: '通用设置',
   settingDialogAsideDataOptionLabel: '数据管理',
   avatarMenuSettingsDialogThemeItemLabel: '主题',

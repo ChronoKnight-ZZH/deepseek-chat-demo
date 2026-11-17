@@ -102,6 +102,7 @@ export const en = {
     "Sent with every request when enabled. Customize the assistant's identity and behavior.",
   settingsSystemPromptPlaceholder: 'Enter a system prompt',
   settingsSystemPromptEnable: 'Enable system prompt',
+  imagePreview: 'Image preview',
   settingDialogAsideGeneralOptionLabel: 'General',
   settingDialogAsideDataOptionLabel: 'Data',
   avatarMenuSettingsDialogThemeItemLabel: 'Theme',

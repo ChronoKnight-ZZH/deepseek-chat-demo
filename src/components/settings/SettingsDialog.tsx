@@ -22,6 +22,8 @@ import {
   isChineseBrowser,
   setLocale,
   setLocation,
+  setSystemPrompt,
+  setSystemPromptEnabled,
   setThemePreference,
   setTtsVoice,
   useSettings,
@@ -99,6 +101,7 @@ const SettingsContent = () => {
               <ThemeSetting />
               <LocaleSetting />
               <TtsVoiceSetting />
+              <SystemPromptSetting />
               <LocationSetting />
             </>
           ) : (
@@ -311,6 +314,44 @@ const TtsVoiceSetting = () => {
         />
       }
     />
+  )
+}
+
+/**
+ * 系统提示词：开关决定是否随请求发送，文本框内容与开关状态都实时保存在 localStorage。
+ * 关闭时仍保留已编辑的文本，重新开启后继续使用。
+ */
+const SystemPromptSetting = () => {
+  const t = useTranslate()
+  const enabled = useSettings((state) => state.systemPromptEnabled)
+  const systemPrompt = useSettings((state) => state.systemPrompt)
+  return (
+    <div className={clsx(styles.cell, styles.prompt)}>
+      <div className={styles.promptHeader}>
+        <div className={styles.text}>
+          <div className={styles.label}>{t('settingsSystemPrompt')}</div>
+          <div className={styles.description}>{t('settingsSystemPromptDescription')}</div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label={t('settingsSystemPromptEnable')}
+          className={clsx(styles.switch, enabled && styles.switchOn)}
+          onClick={() => setSystemPromptEnabled(!enabled)}
+        >
+          <span className={styles.switchThumb} />
+        </button>
+      </div>
+      <textarea
+        className={styles.promptInput}
+        aria-label={t('settingsSystemPrompt')}
+        placeholder={t('settingsSystemPromptPlaceholder')}
+        rows={3}
+        value={systemPrompt}
+        onChange={(event) => setSystemPrompt(event.target.value)}
+      />
+    </div>
   )
 }
 

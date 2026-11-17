@@ -8,7 +8,10 @@ export type Locale = 'zh-CN' | 'en-US'
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-/** 本机设置，存 localStorage：API Key、语言、主题、位置、朗读音色、模型、深度思考与智能搜索开关、侧边栏收起状态 */
+/** 系统提示词的默认内容；用户可在设置中修改或关闭 */
+export const DEFAULT_SYSTEM_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'
+
+/** 本机设置，存 localStorage：API Key、语言、主题、位置、朗读音色、模型、深度思考与智能搜索开关、侧边栏收起状态、系统提示词及开关 */
 type Settings = {
   apiKey: string | null
   locale: Locale
@@ -20,6 +23,9 @@ type Settings = {
   thinking: boolean
   search: boolean
   siderCollapsed: boolean
+  /** 自定义系统提示词：开启后随每次对话发送 */
+  systemPrompt: string
+  systemPromptEnabled: boolean
 }
 
 const KEYS = {
@@ -32,6 +38,8 @@ const KEYS = {
   thinking: 'chat-demo:thinking',
   search: 'chat-demo:search',
   siderCollapsed: 'chat-demo:sider-collapsed',
+  systemPrompt: 'chat-demo:system-prompt',
+  systemPromptEnabled: 'chat-demo:system-prompt-enabled',
 } as const
 
 const read = (key: string) => {
@@ -95,6 +103,9 @@ const initialTtsVoice = (): TtsVoice => (read(KEYS.ttsVoice) === 'tide' ? 'tide'
 const initialModel = (): ChatModel =>
   read(KEYS.model) === 'deepseek-v4-pro' ? 'deepseek-v4-pro' : 'deepseek-flash'
 
+/** 未保存过时使用内置的助手身份说明 */
+const initialSystemPrompt = (): string => read(KEYS.systemPrompt) ?? DEFAULT_SYSTEM_PROMPT
+
 export const useSettings = create<Settings>(() => ({
   apiKey: read(KEYS.apiKey),
   locale: initialLocale(),
@@ -105,6 +116,9 @@ export const useSettings = create<Settings>(() => ({
   thinking: read(KEYS.thinking) === 'true',
   search: read(KEYS.search) === 'true',
   siderCollapsed: read(KEYS.siderCollapsed) === 'true',
+  systemPrompt: initialSystemPrompt(),
+  // 未保存过时保持原有行为：始终携带系统提示词
+  systemPromptEnabled: read(KEYS.systemPromptEnabled) !== 'false',
 }))
 
 export const setLocale = (locale: Locale) => {
@@ -151,4 +165,14 @@ export const setSearch = (search: boolean) => {
 export const setSiderCollapsed = (siderCollapsed: boolean) => {
   write(KEYS.siderCollapsed, String(siderCollapsed))
   useSettings.setState({ siderCollapsed })
+}
+
+export const setSystemPrompt = (systemPrompt: string) => {
+  write(KEYS.systemPrompt, systemPrompt)
+  useSettings.setState({ systemPrompt })
+}
+
+export const setSystemPromptEnabled = (systemPromptEnabled: boolean) => {
+  write(KEYS.systemPromptEnabled, String(systemPromptEnabled))
+  useSettings.setState({ systemPromptEnabled })
 }

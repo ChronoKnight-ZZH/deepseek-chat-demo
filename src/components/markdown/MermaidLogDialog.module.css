@@ -1,0 +1,151 @@
+.dialog {
+  /* 日志需要横向空间展示源码，比默认弹窗更宽 */
+  width: 640px;
+  max-width: calc(100vw - 32px);
+  --modal-header-gap: 12px;
+}
+
+.title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.count {
+  color: var(--dsw-alias-label-caption);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.main {
+  display: flex;
+  min-height: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  /* 固定高度让长日志内部滚动，弹窗整体不抖动 */
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.empty {
+  padding: 32px 0;
+  color: var(--dsw-alias-label-caption);
+  font-size: 13px;
+  text-align: center;
+}
+
+.entry {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background-color: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.error {
+  background-color: var(--dsw-alias-interactive-bg-hover-danger);
+
+  .message {
+    color: var(--dsw-alias-state-error-primary);
+  }
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dsw-alias-label-caption);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.time {
+  flex-shrink: 0;
+}
+
+.tag {
+  flex-shrink: 0;
+}
+
+.level {
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.repeat {
+  flex-shrink: 0;
+}
+
+.message {
+  margin-top: 2px;
+  font-family: var(--ds-font-family-code);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.code {
+  display: block;
+  margin: 6px 0 0;
+  padding: 6px 0;
+  max-height: 180px;
+  overflow: auto;
+  border-radius: 8px;
+  background-color: var(--dsw-alias-markdown-code-block);
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* 每行独立成块，让出错行能整行着色 */
+.codeLine {
+  display: flex;
+  gap: 8px;
+  padding: 0 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.codeLineError {
+  background-color: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.codeLineNumber {
+  flex-shrink: 0;
+  min-width: 20px;
+  color: var(--dsw-alias-label-caption);
+  text-align: right;
+  user-select: none;
+}
+
+.codeLineError .codeLineNumber {
+  color: inherit;
+}
+
+.codeLineText {
+  flex: 1;
+}
+
+/* 出错行号标签 */
+.line {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 4px;
+  background-color: var(--dsw-alias-interactive-bg-hover-danger);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.footerRight {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}

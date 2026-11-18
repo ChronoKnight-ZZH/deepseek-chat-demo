@@ -59,6 +59,55 @@
   line-height: 18px;
 }
 
+/* 图表 / 代码开关：胶囊底槽 + 选中态滑块 */
+.switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+  margin-left: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.switchButton {
+  min-width: 48px;
+  height: 24px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--ds-transition-duration) var(--ds-ease-in-out),
+    color var(--ds-transition-duration) var(--ds-ease-in-out);
+
+  @media (hover: hover) {
+    &:hover {
+      color: var(--dsw-alias-label-primary);
+    }
+  }
+}
+
+.switchActive {
+  /* 深色主题下 banner 与 bg-layer-2 同色，用更亮的 layer-3 保证滑块可见 */
+  background-color: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+
+  @media (hover: hover) {
+    &:hover {
+      color: var(--dsw-alias-label-primary);
+    }
+  }
+}
+
 .actions {
   display: flex;
   flex-shrink: 0;
@@ -90,12 +139,17 @@
   cursor: pointer;
   user-select: none;
 
-  &:active {
+  &:active:not(:disabled) {
     background-color: var(--dsw-alias-interactive-bg-hover);
   }
 
+  &:disabled {
+    color: var(--dsw-alias-label-caption);
+    cursor: not-allowed;
+  }
+
   @media (hover: hover) {
-    &:hover {
+    &:hover:not(:disabled) {
       background-color: var(--dsw-alias-interactive-bg-hover);
     }
   }
@@ -104,4 +158,15 @@
     width: 14px;
     height: 14px;
   }
+}
+
+/* 只有图标的按钮：压成方形，避免与带文字的按钮宽度不一致 */
+.logButton {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+.logButtonAlert {
+  color: var(--dsw-alias-state-error-primary);
 }

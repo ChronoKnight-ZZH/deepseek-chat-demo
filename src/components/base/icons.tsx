@@ -536,6 +536,70 @@ export const IconPhotoErrorFill20 = () => (
 )
 
 /** 错误提示图标：圆环 + 感叹号，颜色跟随 currentColor */
+export const IconListOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M2.40039 3.09961h11.1992v1.30078H2.40039V3.09961Zm0 4.25h11.1992v1.30078H2.40039V7.34961Zm0 4.25h11.1992v1.30078H2.40039v-1.30078Z"
+      fill="currentColor"
+    />
+  </svg>
+)
+
+export const IconZoomInOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M7.00098 2.09961V6.09961H11.001V7.40039H7.00098V11.4004H5.7002V7.40039H1.7002V6.09961H5.7002V2.09961H7.00098Z"
+      fill="currentColor"
+    />
+    <path
+      d="M11.2852 7.00098C11.2852 4.63495 9.36716 2.7168 7.00195 2.7168C4.63674 2.7168 2.71875 4.63495 2.71875 7.00098C2.71875 9.36672 4.63674 11.2852 7.00195 11.2852C9.36716 11.2852 11.2852 9.36672 11.2852 7.00098ZM12.5859 7.00098C12.5857 10.0853 10.0863 12.585 7.00195 12.585C3.91755 12.585 1.41724 10.0853 1.417 7.00098C1.417 3.91643 3.91741 1.417 7.00195 1.417C10.0865 1.417 12.5859 3.91643 12.5859 7.00098Z"
+      fill="currentColor"
+    />
+    <path
+      d="M15.6992 14.751L14.7793 15.6709L11.3975 12.2891L12.3174 11.3691L15.6992 14.751Z"
+      fill="currentColor"
+    />
+  </svg>
+)
+
+export const IconZoomOutOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M11.001 6.09961V7.40039H1.7002V6.09961H11.001Z"
+      fill="currentColor"
+    />
+    <path
+      d="M11.2852 7.00098C11.2852 4.63495 9.36716 2.7168 7.00195 2.7168C4.63674 2.7168 2.71875 4.63495 2.71875 7.00098C2.71875 9.36672 4.63674 11.2852 7.00195 11.2852C9.36716 11.2852 11.2852 9.36672 11.2852 7.00098ZM12.5859 7.00098C12.5857 10.0853 10.0863 12.585 7.00195 12.585C3.91755 12.585 1.41724 10.0853 1.417 7.00098C1.417 3.91643 3.91741 1.417 7.00195 1.417C10.0865 1.417 12.5859 3.91643 12.5859 7.00098Z"
+      fill="currentColor"
+    />
+    <path
+      d="M15.6992 14.751L14.7793 15.6709L11.3975 12.2891L12.3174 11.3691L15.6992 14.751Z"
+      fill="currentColor"
+    />
+  </svg>
+)
+
+export const IconFullscreenOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M6.09961 1.09961V2.40039H2.40039V6.09961H1.09961V1.09961H6.09961Z"
+      fill="currentColor"
+    />
+    <path
+      d="M14.9004 1.09961V6.09961H13.5996V2.40039H9.90039V1.09961H14.9004Z"
+      fill="currentColor"
+    />
+    <path
+      d="M6.09961 13.5996V14.9004H1.09961V9.90039H2.40039V13.5996H6.09961Z"
+      fill="currentColor"
+    />
+    <path
+      d="M14.9004 9.90039V14.9004H9.90039V13.5996H13.5996V9.90039H14.9004Z"
+      fill="currentColor"
+    />
+  </svg>
+)
+
 export const IconToastError16 = () => (
   <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path

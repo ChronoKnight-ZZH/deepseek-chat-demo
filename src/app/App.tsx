@@ -19,6 +19,7 @@ import { Welcome } from '../components/session/Welcome.js'
 import { ensureApiKey } from '../components/settings/settingsDialogState.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { ImageViewer } from '../components/base/ImageViewer.js'
+import { MermaidLogDialog } from '../components/markdown/MermaidLogDialog.js'
 import { Toast } from '../components/base/Toast.js'
 import { showToast } from '../components/base/toastState.js'
 import { onUploadNotice } from '../services/attachments.js'
@@ -147,6 +148,7 @@ export const App = () => {
         <HtmlPreviewPanel />
       </div>
       <SettingsDialog />
+      <MermaidLogDialog />
       <ImageViewer />
       <Toast />
     </>

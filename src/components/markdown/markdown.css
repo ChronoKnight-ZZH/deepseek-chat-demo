@@ -347,26 +347,41 @@
   overflow-x: auto;
 }
 
-.md-code-block-switch {
-  display: flex;
-  gap: 4px;
-
-  [aria-pressed='true'] {
-    background: var(--dsw-alias-markdown-code-block);
-    color: var(--dsw-alias-label-primary);
-  }
-}
-
+/* Mermaid 图表容器：固定 360px 高；图表初始按容器高度等比适应，缩放再叠加倍率 */
 .md-mermaid-diagram {
+  /* 高度包含内边距，图表可用空间随内边距自动扣除 */
+  box-sizing: border-box;
+  display: flex;
+  height: 360px;
   padding: 16px;
   overflow: auto;
-  text-align: center;
+  /* 图表整体按拖动平移，不参与文字选中 */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
 
   > svg {
     display: block;
-    max-width: 100%;
-    height: auto;
-    margin: 0 auto;
+    flex: none;
+    /* 宽度按 viewBox 比例自动推导，高度铺满容器后再乘以缩放倍率 */
+    width: auto !important;
+    max-width: none !important;
+    height: calc(100% * var(--md-mermaid-zoom, 1)) !important;
+    /* margin: auto 让放得下的图居中，超出时归零以便从头滚动 */
+    margin: auto;
+    transition: height 0.18s var(--ds-ease-in-out);
+    /* SVG 内的文字与节点同样不可选中 */
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+}
+
+/* 拖动过程中切换为抓取光标，并关闭子元素的文字选中 */
+.md-mermaid-diagram-dragging {
+  cursor: grabbing;
+  /* 拖动时无需过渡动画，否则图表会跟随滞后 */
+  > svg {
+    transition: none;
   }
 }
 
@@ -378,4 +393,20 @@
   padding: 16px;
   color: var(--dsw-alias-label-secondary);
   font-size: 14px;
+}
+
+/* 渲染失败时的日志入口：保持与状态文字一致的观感，但可点击 */
+.md-mermaid-status-action {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: var(--dsw-alias-label-primary);
+  }
 }

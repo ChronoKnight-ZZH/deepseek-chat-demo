@@ -10,13 +10,20 @@ import { Button } from '../base/Button.js'
 import { IconButton } from '../base/IconButton.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
+import { usePresence } from '../base/usePresence.js'
 import { openSettings } from '../settings/settingsDialogState.js'
 import { closeMobileSider, useMobileSider } from './mobileSiderState.js'
 import { SessionItem } from './SessionItem.js'
 import styles from './Sider.module.css'
 
 /** 展开的侧边栏：名称与收起按钮、开启新对话、按时间分组的会话列表、底部设置；移动端放在抽屉里，收起按钮关闭抽屉 */
-export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
+export const Sider = ({
+  mobile = false,
+  exiting = false,
+}: {
+  mobile?: boolean
+  exiting?: boolean
+}) => {
   const t = useTranslate()
   const sessions = useChatStore((state) => state.sessions)
   const activeId = useChatStore((state) => state.activeId)
@@ -50,7 +57,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   }, [])
 
   return (
-    <div className={clsx(styles.sider, mobile && styles.mobile)}>
+    <div className={clsx(styles.sider, mobile && styles.mobile, exiting && styles.exiting)}>
       <div className={styles.top}>
         <div className={styles.appName}>{t('appName')}</div>
         <IconButton
@@ -140,16 +147,29 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   )
 }
 
+/** 桌面端侧边栏：收起后保留一段时间播放退场动画 */
+export const DesktopSider = ({ collapsed }: { collapsed: boolean }) => {
+  const { mounted, exiting } = usePresence(!collapsed)
+  if (!mounted) {
+    return null
+  }
+  return <Sider exiting={exiting} />
+}
+
 /** 移动端抽屉：浮在页面上方，点空白区域关闭。 */
 export const MobileSider = () => {
   const open = useMobileSider((state) => state.open)
-  if (!open) {
+  const { mounted, exiting } = usePresence(open)
+  if (!mounted) {
     return null
   }
   return (
     <>
-      <div className={styles.drawerMask} onClick={closeMobileSider} />
-      <div className={styles.drawer}>
+      <div
+        className={clsx(styles.drawerMask, exiting && styles.drawerMaskExiting)}
+        onClick={closeMobileSider}
+      />
+      <div className={clsx(styles.drawer, exiting && styles.drawerExiting)}>
         <Sider mobile />
       </div>
     </>

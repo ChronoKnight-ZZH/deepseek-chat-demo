@@ -1,6 +1,7 @@
-import { useTranslate } from '../../i18n/index.js'
-import { memo, useEffect, useMemo, useReducer, useState } from 'react'
+import clsx from 'clsx'
+import { memo, useEffect, useMemo, useReducer, useState, type CSSProperties } from 'react'
 import Prism from 'prismjs'
+import { useTranslate } from '../../i18n/index.js'
 import {
   getHighlightLang,
   isHighlightLoaded,
@@ -17,6 +18,7 @@ import { copyText } from '../../utils/clipboard.js'
 import { downloadHtml, getHtmlTitle } from '../../utils/html.js'
 import { openHtmlPreview } from '../htmlPreview/htmlPreviewState.js'
 import { MermaidDiagram } from './MermaidDiagram.js'
+import { useFloatingCodeBanner } from './useFloatingCodeBanner.js'
 import styles from './CodeBlock.module.css'
 
 /** 代码块标题栏：左侧语言名，右侧复制；HTML 代码块额外提供下载和预览 */
@@ -26,17 +28,30 @@ const CodeInfoRow = ({
   showDiagram,
   onToggleDiagram,
   onPreview,
+  floating,
+  hidden,
+  floatingStyle,
 }: {
   code: string
   infostring: string
   showDiagram: boolean
   onToggleDiagram?: () => void
   onPreview?: () => void
+  floating: boolean
+  hidden: boolean
+  floatingStyle?: CSSProperties
 }) => {
   const t = useTranslate()
   const [copied, setCopied] = useState(false)
   return (
-    <div className={styles.container}>
+    <div
+      className={clsx(
+        styles.container,
+        floating && styles.floating,
+        hidden && styles.floatingHidden
+      )}
+      style={floatingStyle}
+    >
       {onToggleDiagram ? (
         <div className="md-code-block-switch" aria-label={t('mermaidSwitchLabel')}>
           <button
@@ -75,9 +90,7 @@ const CodeInfoRow = ({
           {copied ? <IconCheckOutline16 /> : <IconCopyOutline16 />}
           <span>{t(copied ? 'copied' : 'copy')}</span>
         </button>
-        {onPreview ? (
-          <>
-            <button
+        <button
               type="button"
               className={styles.button}
               onClick={() => downloadHtml(code, getHtmlTitle(code) || t('htmlPreview'))}
@@ -85,6 +98,9 @@ const CodeInfoRow = ({
               <IconDownloadOutline16 />
               <span>{t('download')}</span>
             </button>
+        {onPreview ? (
+          <>
+            <div className={styles.divider}></div>
             <button type="button" className={styles.button} onClick={onPreview}>
               <IconEyeOutline16 />
               <span>{t('preview')}</span>
@@ -131,15 +147,36 @@ export const CodeBlock = memo(function CodeBlock({
     const name = lang !== null && loaded ? lang : 'plaintext'
     return Prism.highlight(code, Prism.languages[name], name)
   }, [code, lang, loaded])
+  const {
+    blockRef,
+    bannerRef,
+    topAnchorRef,
+    bottomAnchorRef,
+    floating,
+    hidden,
+    placeholderHeight,
+    floatingStyle,
+  } = useFloatingCodeBanner()
   return (
-    <div className="md-code-block">
-      <div className="md-code-block-banner">
+    <div className="md-code-block" ref={blockRef}>
+      <span ref={topAnchorRef} className={styles.anchorTop} aria-hidden="true" />
+      <div className="md-code-block-banner" ref={bannerRef}>
+        {floating ? (
+          <div
+            className={styles.placeholder}
+            style={{ height: placeholderHeight }}
+            aria-hidden="true"
+          />
+        ) : null}
         <CodeInfoRow
           code={code}
           infostring={infostring}
           showDiagram={showDiagram}
           onToggleDiagram={isMermaid ? () => setShowDiagram((show) => !show) : undefined}
           onPreview={isHtml ? () => openHtmlPreview(code) : undefined}
+          floating={floating}
+          hidden={hidden}
+          floatingStyle={floatingStyle}
         />
       </div>
       {isMermaid && showDiagram ? (
@@ -147,6 +184,7 @@ export const CodeBlock = memo(function CodeBlock({
       ) : (
         <pre dangerouslySetInnerHTML={{ __html: renderedHtml }}></pre>
       )}
+      <span ref={bottomAnchorRef} className={styles.anchorBottom} aria-hidden="true" />
     </div>
   )
 })

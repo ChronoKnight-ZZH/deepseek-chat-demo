@@ -1,9 +1,54 @@
 .container {
+  position: relative;
   display: flex;
   width: 100%;
   justify-content: space-between;
   align-items: center;
   padding: 6px;
+}
+
+/* 观察锚点：贴在代码块上下边缘的 1px 区域，不参与布局 */
+.anchorTop,
+.anchorBottom {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.anchorTop {
+  top: 0;
+}
+
+.anchorBottom {
+  bottom: 0;
+}
+
+/* 标题栏 fixed 后用它撑住 banner 的高度，避免页面跳动 */
+.placeholder {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* 顶部锚点滚出视口后，标题栏钉在滚动视口顶部 */
+.floating {
+  position: fixed;
+  z-index: 20;
+  box-sizing: border-box;
+  border-radius: var(--dsl-code-block-border-radius) var(--dsl-code-block-border-radius) 0 0;
+  background: var(--dsl-code-block-banner-background-color);
+  /* box-shadow:
+    0 1px 0 var(--dsw-alias-border-l2),
+    0 6px 16px rgb(0 0 0 / 8%); */
+  transition: opacity 0.25s ease;
+}
+
+/* 底部锚点也滚出视口后，整个代码块已不可见，标题栏淡出 */
+.floatingHidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .name {
@@ -19,6 +64,14 @@
   flex-shrink: 0;
   align-items: center;
   gap: 2px;
+}
+
+.divider {
+  width: 1px;
+  height: 14px;
+  margin-left: 9px;
+  margin-right: 8px;
+  background-color: var(--dsw-alias-label-caption);
 }
 
 .button {

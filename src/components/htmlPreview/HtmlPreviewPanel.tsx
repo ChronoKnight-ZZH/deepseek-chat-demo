@@ -4,6 +4,7 @@ import { useTranslate } from '../../i18n/index.js'
 import { getHtmlTitle } from '../../utils/html.js'
 import { IconCloseOutline16 } from '../base/icons.js'
 import { IconButton } from '../base/IconButton.js'
+import { usePresence } from '../base/usePresence.js'
 import { closeHtmlPreview, useHtmlPreview } from './htmlPreviewState.js'
 import styles from './HtmlPreviewPanel.module.css'
 
@@ -20,30 +21,40 @@ const clampWidth = (width: number) =>
 export const HtmlPreviewPanel = () => {
   const t = useTranslate()
   const code = useHtmlPreview((state) => state.code)
+  // 关闭时保留最后预览的内容，让面板滑出时不至于瞬间清空
+  const [lastCode, setLastCode] = useState<string | null>(null)
+  const displayCode = code ?? lastCode
+  const { mounted, exiting } = usePresence(code !== null)
   const isMobile = useIsMobile()
   const [width, setWidth] = useState(() => clampWidth(window.innerWidth / 2))
   const [resizing, setResizing] = useState(false)
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
+  useEffect(() => {
+    if (code !== null) {
+      setLastCode(code)
+    }
+  }, [code])
+
   const title = useMemo(() => {
-    if (code === null) {
+    if (displayCode === null) {
       return ''
     }
-    return getHtmlTitle(code) || t('htmlPreview')
-  }, [code, t])
+    return getHtmlTitle(displayCode) || t('htmlPreview')
+  }, [displayCode, t])
 
   // 窗口变窄时把面板收回到允许范围内
   useEffect(() => {
-    if (code === null) {
+    if (!mounted) {
       return
     }
     const onResize = () => setWidth((current) => clampWidth(current))
     onResize()
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [code])
+  }, [mounted])
 
-  if (code === null) {
+  if (!mounted || displayCode === null) {
     return null
   }
 
@@ -91,7 +102,7 @@ export const HtmlPreviewPanel = () => {
 
   return (
     <aside
-      className={styles.panel}
+      className={exiting ? `${styles.panel} ${styles.exiting}` : styles.panel}
       style={isMobile ? undefined : { width }}
       aria-label={t('htmlPreview')}
     >
@@ -132,7 +143,7 @@ export const HtmlPreviewPanel = () => {
       <iframe
         className={styles.frame}
         title={title}
-        srcDoc={code}
+        srcDoc={displayCode}
         sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-pointer-lock"
         referrerPolicy="no-referrer"
       />

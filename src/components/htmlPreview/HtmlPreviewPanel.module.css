@@ -8,6 +8,42 @@
   border-left: 1px solid var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-bg-base);
+  animation: panel-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 退场时脱离布局，让主区域先让出空间，面板再滑出 */
+.exiting {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  animation: panel-exit 0.5s cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes panel-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
 }
 
 .handle {
@@ -97,5 +133,12 @@
     z-index: 700;
     width: auto;
     border-left: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .exiting {
+    animation: none;
   }
 }

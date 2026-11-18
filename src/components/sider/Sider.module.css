@@ -8,6 +8,41 @@
   padding: 6px 12px 0;
   border-right: 1px solid var(--dsw-alias-border-l1);
   background-color: var(--dsw-specific-sidebar-fill);
+  animation: sider-enter 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes sider-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 退场时脱离布局，让主区域先让出空间，侧边栏再滑出 */
+.exiting {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  animation: sider-exit 0.5s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes sider-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
 }
 
 .top {
@@ -198,17 +233,69 @@
   bottom: 0;
   left: 0;
   z-index: 800;
+  animation: drawer-enter 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes drawer-enter {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.drawerExiting {
+  animation: drawer-exit 0.5s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes drawer-exit {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-100%);
+  }
 }
 
 .drawerMask {
   position: absolute;
   inset: 0;
   z-index: 799;
+  animation: drawer-mask-enter 0.5s ease backwards;
+}
+
+.drawerMaskExiting {
+  animation: drawer-mask-exit 0.5s ease forwards;
+}
+
+@keyframes drawer-mask-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes drawer-mask-exit {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
 
 .mobile {
   width: 300px;
   max-width: calc(100vw - 48px);
+  /* 抽屉本身已有入场动画，避免叠加两层 */
+  animation: none;
 
   .listWrap {
     margin-top: 16px;
@@ -243,5 +330,16 @@
     margin-left: 10px;
     font-size: 16px;
     line-height: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sider,
+  .exiting,
+  .drawer,
+  .drawerExiting,
+  .drawerMask,
+  .drawerMaskExiting {
+    animation: none;
   }
 }

@@ -316,6 +316,7 @@
   --dsl-code-block-banner-font: var(--dsw-font-xs-13);
   --dsl-code-block-content-font: var(--dsw-font-markdown-code-block);
 
+  position: relative;
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-markdown-code-block);
   border-radius: var(--dsl-code-block-border-radius);

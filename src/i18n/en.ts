@@ -1,7 +1,10 @@
 import type { zh } from './zh.js'
 
 export const en = {
-  welcomeMessageChat250808: 'How can I help you?',
+  welcomeMessage1: 'Hi, how can I help?',
+  welcomeMessage2: 'Welcome back! Where would you like to start?',
+  welcomeMessage3: 'Hi! What would you like to chat about today?',
+  welcomeMessage4: 'Ask me anything — let’s explore!',
   contentCaveat: 'AI-generated, for reference only',
   expandSiderbarButton: 'Open sidebar',
   collapseSiderbarButton: 'Close sidebar',

@@ -1,5 +1,8 @@
 export const zh = {
-  welcomeMessageChat250808: '今天有什么可以帮到你？',
+  welcomeMessage1: '你好，我能帮什么忙吗？',
+  welcomeMessage2: '欢迎回来，想从哪里开始？',
+  welcomeMessage3: '嗨！今天想聊些什么？',
+  welcomeMessage4: '问点什么，一起探索！',
   contentCaveat: '内容由 AI 生成，请仔细甄别',
   expandSiderbarButton: '打开边栏',
   collapseSiderbarButton: '收起边栏',

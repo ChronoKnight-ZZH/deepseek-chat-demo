@@ -5,6 +5,45 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#ffffff" />
     <title>API 使用 demo</title>
+    <script>
+      // 会话地址是真实路径（/chat/<id>）。站点部署在子目录时，这种深链接会让下面的相对路径
+      // 被拼到会话段之后而 404，所以先按当前地址推算应用根目录写入 <base>，资源按根目录解析。
+      // 应用只会产生欢迎页与 <根目录>chat/<id> 两种地址；认不出的路径用构建配置的根目录兜底，
+      // 之后由 src/services/chat/route.ts 回收到欢迎页。会话路由段需与它保持一致。
+      ;(function () {
+        // 本地直接打开 index.html 时按文件相对位置加载，不能改写为站点根目录。
+        if (location.protocol === 'file:') {
+          return
+        }
+        var pathname = location.pathname
+        var segments = pathname.split('/').filter(Boolean)
+        var last = segments.length - 1
+        var root
+        if (pathname.charAt(pathname.length - 1) === '/') {
+          // 以 / 结尾说明当前地址就是目录，它本身就是应用根目录
+          root = '/' + segments.join('/')
+        } else if (last >= 1 && segments[last - 1] === 'chat') {
+          // .../chat/<id>
+          root = '/' + segments.slice(0, last - 1).join('/')
+        } else if (segments[last] === 'chat') {
+          // .../chat
+          root = '/' + segments.slice(0, last).join('/')
+        } else if (segments[last].indexOf('.') !== -1) {
+          // 直接访问 index.html 之类的文件，去掉文件名
+          root = '/' + segments.slice(0, last).join('/')
+        } else {
+          // 认不出的路径：用构建时配置的应用根目录
+          root = '<%= appBasePath %>'
+        }
+        root = root.replace(/\/{2,}/g, '/')
+        if (root.charAt(root.length - 1) !== '/') {
+          root += '/'
+        }
+        var base = document.createElement('base')
+        base.href = root
+        document.head.appendChild(base)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

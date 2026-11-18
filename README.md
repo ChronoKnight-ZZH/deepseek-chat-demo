@@ -27,6 +27,26 @@ pnpm build
 
 The output is written to `dist/`. Deploy it to a static web server or open `dist/index.html` directly. Opening the file directly requires browser support for storage on `file://` pages and an API service that permits their cross-origin requests.
 
+## Conversation URLs
+
+The active conversation is reflected in the address bar as `/chat/<conversation id>`; the welcome screen (new chat) is the site root. Switching conversations and sending the first message from the welcome screen both update the address, and browser back and forward move between conversations. Addresses are written with `replaceState`, so they do not pile up in browser history. Opening `/chat/<id>` goes straight to that conversation; if it was deleted or belongs to another browser, you land on the welcome screen.
+
+Conversation URLs are real paths, so the server must fall back to `index.html` or opening and reloading one returns 404:
+
+```nginx
+# nginx: serve index.html when no file exists under /chat/
+location / {
+  try_files $uri $uri/ /index.html;
+}
+```
+
+```text
+# Caddy
+try_files {path} /index.html
+```
+
+Deploying under a subdirectory (such as `https://example.com/app/`) needs no extra configuration: the inline script in `src/index.html` derives the app root from the current address and writes it to `<base>`, so assets still load from the subdirectory and conversation URLs become `/app/chat/<id>`.
+
 ## Features
 
 - Multiple conversations with automatic titles, renaming, and deletion; edit prompts, regenerate replies, and switch between message branches.

@@ -9,6 +9,7 @@ import {
   selectSession,
   useChatStore,
 } from '../services/chat/store.js'
+import { bindSessionUrl } from '../services/chat/route.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
 import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { HtmlPreviewPanel } from '../components/htmlPreview/HtmlPreviewPanel.js'
@@ -65,6 +66,8 @@ export const App = () => {
   // 文件数、存储空间达到上限时，附件上只显示「上传失败」，原因用 toast 说明
   useEffect(() => onUploadNotice(showToast), [])
   useEffect(bindChatPersistence, [])
+  // 会话 id 与会话地址（/chat/<id>）双向同步
+  useEffect(bindSessionUrl, [])
 
   // 搜索结果面板只属于当前会话
   useEffect(closeSearchPanel, [activeId])

@@ -19,6 +19,8 @@ const cssLoader = {
 type ConfigOptions = {
   /** 公开 API 的地址，注入为 __API_ORIGIN__ */
   apiOrigin?: string
+  /** 部署目录，如 '/app/'；用于在认不出的地址下兜底解析资源，须以 / 开头和结尾 */
+  basePath?: string
   /** 开发服务器配置，支持本地接口代理 */
   devServer?: Configuration['devServer']
 }
@@ -26,6 +28,7 @@ type ConfigOptions = {
 /** 创建构建配置，支持自定义 API 地址和开发服务器选项 */
 export const createConfig = ({
   apiOrigin = 'https://api.deepseek.com',
+  basePath = '/',
   devServer,
 }: ConfigOptions = {}): Configuration => ({
   mode: dev ? 'development' : 'production',
@@ -79,6 +82,8 @@ export const createConfig = ({
       template: './src/index.html',
       scriptLoading: 'defer',
       meta: { 'application-version': version },
+      // 内联脚本据此兜底推断应用根目录（见 src/index.html）
+      templateParameters: { appBasePath: basePath },
     }),
     new rspack.DefinePlugin({ __API_ORIGIN__: JSON.stringify(apiOrigin) }),
     new rspack.CopyRspackPlugin({
@@ -86,7 +91,8 @@ export const createConfig = ({
     }),
   ],
   performance: { hints: false },
-  devServer: { port: 8090, ...devServer },
+  // 会话地址是真实路径（/chat/<id>），刷新和直链都要回退到 index.html
+  devServer: { port: 8090, historyApiFallback: true, ...devServer },
 })
 
 // eslint-disable-next-line import/no-default-export

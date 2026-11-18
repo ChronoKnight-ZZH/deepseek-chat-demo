@@ -27,6 +27,26 @@ pnpm build
 
 产物位于 `dist/`，可部署到静态服务器，也可直接打开 `dist/index.html`。直接打开时，浏览器和 API 服务需允许 `file://` 页面的存储与跨域请求。
 
+## 会话地址
+
+当前会话会体现在地址栏里：`/chat/<会话 id>`，欢迎页（新对话）是站点根路径。切换会话、在欢迎页发出第一条消息都会同步更新地址，浏览器前进后退也会切换会话；地址使用 `replaceState` 写入，不会在历史记录里堆积。打开 `/chat/<id>` 可以直接进入该会话，会话已删除或不属于本机时回到欢迎页。
+
+会话地址是真实路径，部署时需让服务端把该路径回退到 `index.html`，否则直接访问或刷新会 404：
+
+```nginx
+# nginx：/chat/ 下找不到文件时交给 index.html
+location / {
+  try_files $uri $uri/ /index.html;
+}
+```
+
+```text
+# Caddy
+try_files {path} /index.html
+```
+
+站点部署在子目录（如 `https://example.com/app/`）时无需额外配置：`src/index.html` 中的内联脚本会按当前地址推断应用根目录并写入 `<base>`，资源照常按子目录加载，会话地址形如 `/app/chat/<id>`。
+
 ## 功能
 
 - 多会话、自动标题、重命名与删除；编辑提问、重新生成和切换消息分支。

@@ -10,6 +10,8 @@
   line-height: 22px;
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
+  /* 会话项是链接，外观保持与列表项一致 */
+  text-decoration: none;
 
   &.active {
     background-color: var(--dsw-specific-sidebar-nav-item-active-accent);

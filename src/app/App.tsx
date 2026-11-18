@@ -11,6 +11,8 @@ import {
 } from '../services/chat/store.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
 import { closeSearchPanel } from '../components/search/searchPanelState.js'
+import { HtmlPreviewPanel } from '../components/htmlPreview/HtmlPreviewPanel.js'
+import { closeHtmlPreview } from '../components/htmlPreview/htmlPreviewState.js'
 import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
 import { Welcome } from '../components/session/Welcome.js'
@@ -23,7 +25,7 @@ import { onUploadNotice } from '../services/attachments.js'
 import { Button } from '../components/base/Button.js'
 import { stopReadAloud } from '../services/speech/readAloud.js'
 import { CollapsedSider } from '../components/sider/CollapsedSider.js'
-import { closeMobileSider } from '../components/sider/mobileSiderState.js'
+import { closeMobileSider, useMobileSider } from '../components/sider/mobileSiderState.js'
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import styles from './App.module.css'
 
@@ -32,7 +34,9 @@ export const App = () => {
   const isMobile = useIsMobile()
   const locale = useSettings((state) => state.locale)
   // 移动端侧边栏以独立抽屉管理开合状态
-  const siderCollapsed = useSettings((state) => state.siderCollapsed) && !isMobile
+  const siderSettingCollapsed = useSettings((state) => state.siderCollapsed)
+  const siderCollapsed = siderSettingCollapsed && !isMobile
+  const mobileSiderOpen = useMobileSider((state) => state.open)
   const ready = useChatStore((state) => state.ready)
   const initError = useChatStore((state) => state.initError)
   const saveError = useChatStore((state) => Object.values(state.sessionSaveErrors).some(Boolean))
@@ -63,6 +67,14 @@ export const App = () => {
 
   // 搜索结果面板只属于当前会话
   useEffect(closeSearchPanel, [activeId])
+  // HTML 预览也跟随所属会话
+  useEffect(closeHtmlPreview, [activeId])
+  // 左侧边栏展开时收起右侧预览，两者互斥
+  useEffect(() => {
+    if (isMobile ? mobileSiderOpen : !siderSettingCollapsed) {
+      closeHtmlPreview()
+    }
+  }, [isMobile, mobileSiderOpen, siderSettingCollapsed])
   // 切换会话时停止朗读
   useEffect(stopReadAloud, [activeId])
   // 移动端选中会话、切换布局后收起抽屉
@@ -132,6 +144,7 @@ export const App = () => {
           </div>
         </main>
         <SearchPanel />
+        <HtmlPreviewPanel />
       </div>
       <SettingsDialog />
       <ImageViewer />

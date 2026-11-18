@@ -104,6 +104,18 @@ export const IconDownloadOutline16 = () => (
   </svg>
 )
 
+export const IconEyeOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M8 2.75c-3.05 0-5.65 1.96-7.02 4.72a1.2 1.2 0 0 0 0 1.06C2.35 11.29 4.95 13.25 8 13.25s5.65-1.96 7.02-4.72a1.2 1.2 0 0 0 0-1.06C13.65 4.71 11.05 2.75 8 2.75Zm0 1.3c2.35 0 4.42 1.48 5.63 3.95-1.21 2.47-3.28 3.95-5.63 3.95S3.58 10.47 2.37 8C3.58 5.53 5.65 4.05 8 4.05Z"
+      fill="currentColor"
+    />
+    <circle cx="8" cy="8" r="2.1" fill="currentColor" />
+  </svg>
+)
+
 export const IconEditOutline16 = () => (
   <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path

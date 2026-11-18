@@ -6,23 +6,32 @@ import {
   isHighlightLoaded,
   loadHighlight,
 } from '../../services/markdown/highlight.js'
-import { IconCheckOutline16, IconCopyOutline16 } from '../base/icons.js'
+import {
+  IconCheckOutline16,
+  IconCopyOutline16,
+  IconDownloadOutline16,
+  IconEyeOutline16,
+} from '../base/icons.js'
 import { showToast } from '../base/toastState.js'
 import { copyText } from '../../utils/clipboard.js'
+import { downloadHtml, getHtmlTitle } from '../../utils/html.js'
+import { openHtmlPreview } from '../htmlPreview/htmlPreviewState.js'
 import { MermaidDiagram } from './MermaidDiagram.js'
 import styles from './CodeBlock.module.css'
 
-/** 代码块标题栏：左侧语言名，右侧复制 */
+/** 代码块标题栏：左侧语言名，右侧复制；HTML 代码块额外提供下载和预览 */
 const CodeInfoRow = ({
   code,
   infostring,
   showDiagram,
   onToggleDiagram,
+  onPreview,
 }: {
   code: string
   infostring: string
   showDiagram: boolean
   onToggleDiagram?: () => void
+  onPreview?: () => void
 }) => {
   const t = useTranslate()
   const [copied, setCopied] = useState(false)
@@ -50,21 +59,39 @@ const CodeInfoRow = ({
       ) : (
         <span className={styles.name}>{infostring}</span>
       )}
-      <button
-        type="button"
-        className={styles.button}
-        onClick={async () => {
-          if (!(await copyText(code))) {
-            showToast({ key: 'copyFailed' })
-            return
-          }
-          setCopied(true)
-          setTimeout(() => setCopied(false), 1500)
-        }}
-      >
-        {copied ? <IconCheckOutline16 /> : <IconCopyOutline16 />}
-        <span>{t(copied ? 'copied' : 'copy')}</span>
-      </button>
+      <div className={styles.actions}>
+        <button
+          type="button"
+          className={styles.button}
+          onClick={async () => {
+            if (!(await copyText(code))) {
+              showToast({ key: 'copyFailed' })
+              return
+            }
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+          }}
+        >
+          {copied ? <IconCheckOutline16 /> : <IconCopyOutline16 />}
+          <span>{t(copied ? 'copied' : 'copy')}</span>
+        </button>
+        {onPreview ? (
+          <>
+            <button
+              type="button"
+              className={styles.button}
+              onClick={() => downloadHtml(code, getHtmlTitle(code) || t('htmlPreview'))}
+            >
+              <IconDownloadOutline16 />
+              <span>{t('download')}</span>
+            </button>
+            <button type="button" className={styles.button} onClick={onPreview}>
+              <IconEyeOutline16 />
+              <span>{t('preview')}</span>
+            </button>
+          </>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -80,6 +107,7 @@ export const CodeBlock = memo(function CodeBlock({
   loading?: boolean
 }) {
   const isMermaid = infostring.toLowerCase() === 'mermaid'
+  const isHtml = ['html', 'htm'].includes(infostring.trim().toLowerCase())
   const [showDiagram, setShowDiagram] = useState(true)
   // 语言包注册在全局 Prism 上，每次渲染直接判断；加载完成后触发一次重渲染
   const rerender = useReducer((n: number) => n + 1, 0)[1]
@@ -111,6 +139,7 @@ export const CodeBlock = memo(function CodeBlock({
           infostring={infostring}
           showDiagram={showDiagram}
           onToggleDiagram={isMermaid ? () => setShowDiagram((show) => !show) : undefined}
+          onPreview={isHtml ? () => openHtmlPreview(code) : undefined}
         />
       </div>
       {isMermaid && showDiagram ? (

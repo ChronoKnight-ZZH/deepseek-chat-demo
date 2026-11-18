@@ -1,0 +1,230 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+  animation: overlay-enter 72ms ease backwards;
+
+  [data-ds-dark-theme] & {
+    background-color: rgba(0, 0, 0, 0.55);
+  }
+}
+
+@keyframes overlay-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* 搜索条固定在「结果展开后」的位置（545px 高面板垂直居中），展开时向下生长，输入框不移动 */
+.panel {
+  position: absolute;
+  top: calc((100dvh - min(545px, 100dvh - 80px)) / 2);
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 660px;
+  max-width: calc(100vw - 32px);
+  height: 60px;
+  overflow: hidden;
+  border-radius: 16px;
+  background-color: var(--dsw-alias-bg-layer-2);
+  box-shadow:
+    inset 0 0 0 1px var(--dsw-alias-border-inverted),
+    0 0 1px 0 rgba(0, 0, 0, 0.2),
+    0 12px 32px 0 rgba(0, 0, 0, 0.12);
+  transform: translateX(-50%);
+  transition: height 72ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: panel-enter 72ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.panelWithResults {
+  height: auto;
+  max-height: calc(100dvh - 40px);
+}
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px) scale(0.98);
+  }
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 10px;
+  box-sizing: border-box;
+  height: 60px;
+  padding: 0 14px 0 20px;
+  
+}
+
+.searchBarWithResults {
+  box-shadow: inset 0 -1px 0 var(--dsw-alias-border-l1);
+}
+
+.searchIcon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 17px;
+  line-height: 24px;
+  color: var(--dsw-alias-label-primary);
+
+  &::placeholder {
+    color: var(--dsw-alias-label-caption);
+  }
+}
+
+.close {
+  margin-right: -4px;
+}
+
+.results {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: min(485px, calc(100dvh - 140px));
+  padding: 8px;
+  overflow-y: auto;
+  scrollbar-color: var(--scroll-color) transparent;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 68px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 72ms ease;
+}
+
+.rowActive {
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.row:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--dsw-alias-button-primary-fill);
+}
+
+.rowIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--dsw-alias-label-secondary);
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.rowActive .rowIcon {
+  background-color: var(--dsw-alias-interactive-bg-hover-accent);
+}
+
+.rowBody {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+.rowHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.rowTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--dsw-alias-label-primary);
+}
+
+.rowDate {
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowSnippet {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--dsw-alias-label-secondary);
+
+  mark {
+    background: none;
+    font-weight: 500;
+    color: var(--dsw-alias-brand-text);
+  }
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-tertiary);
+  text-align: center;
+}
+
+@media not all and (min-width: 768px) {
+  .panel {
+    width: calc(100vw - 24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .panel {
+    animation: none;
+  }
+
+  .panel {
+    transition: none;
+  }
+}

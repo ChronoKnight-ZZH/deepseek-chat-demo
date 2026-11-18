@@ -8,6 +8,7 @@ import {
 import { selectMessageVersion } from '../../services/chat/store.js'
 import type { Session } from '../../services/chat/types.js'
 import { closeSearchPanel } from '../search/searchPanelState.js'
+import { clearMessageJump, useMessageSearch } from '../messageSearch/messageSearchState.js'
 import { AssistantMessage } from './AssistantMessage.js'
 import { ScrollToBottomContext } from './scrollContext.js'
 import { UserMessage } from './UserMessage.js'
@@ -48,6 +49,8 @@ export const MessageList = ({
   const stickyRef = useRef(true)
   const scrollTopRef = useRef(0)
   const restoreScrollRef = useRef<{ messageId: string; top: number } | null>(null)
+  const highlightTimer = useRef<ReturnType<typeof setTimeout>>()
+  const jumpTarget = useMessageSearch((state) => state.target)
   const messages = getVisibleMessages(session)
   const [previousVersions, setPreviousVersions] = useState(() =>
     buildMessageVersions(session, new Map())
@@ -100,6 +103,31 @@ export const MessageList = ({
   }, [session.id, lastMessageId, scrollToBottom])
 
   useEffect(closeSearchPanel, [session.id, lastMessageId])
+
+  useEffect(() => () => clearTimeout(highlightTimer.current), [])
+
+  // 从全文搜索跳转：等会话加载并完成默认滚动后，定位到目标消息并短暂高亮。
+  useEffect(() => {
+    if (!jumpTarget || jumpTarget.sessionId !== session.id) {
+      return
+    }
+    const element = scrollRef.current?.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(jumpTarget.messageId)}"]`
+    )
+    if (!element) {
+      clearMessageJump(jumpTarget)
+      return
+    }
+    stickyRef.current = false
+    element.scrollIntoView({ block: 'center' })
+    element.classList.remove(styles.highlight)
+    // 连续定位同一条消息时也重新播放高亮动画
+    void element.offsetWidth
+    element.classList.add(styles.highlight)
+    clearTimeout(highlightTimer.current)
+    highlightTimer.current = setTimeout(() => element.classList.remove(styles.highlight), 1800)
+    clearMessageJump(jumpTarget)
+  }, [jumpTarget, session.id])
 
   const selectVersion = useCallback(
     (messageId: string, anchorTop: number) => {

@@ -35,3 +35,20 @@
   margin: 0 auto;
   padding-bottom: 24px;
 }
+
+/* 从全文搜索定位到消息时的短暂高亮 */
+.highlight {
+  border-radius: 16px;
+  animation: message-highlight 1.8s ease-out;
+}
+
+@keyframes message-highlight {
+  0%,
+  25% {
+    background-color: var(--dsw-alias-interactive-bg-hover-accent);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}

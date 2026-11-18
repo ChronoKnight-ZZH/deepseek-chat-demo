@@ -29,6 +29,8 @@ import { stopReadAloud } from '../services/speech/readAloud.js'
 import { CollapsedSider } from '../components/sider/CollapsedSider.js'
 import { closeMobileSider, useMobileSider } from '../components/sider/mobileSiderState.js'
 import { DesktopSider, MobileSider } from '../components/sider/Sider.js'
+import { MessageSearch } from '../components/messageSearch/MessageSearch.js'
+import { openMessageSearch } from '../components/messageSearch/messageSearchState.js'
 import styles from './App.module.css'
 
 export const App = () => {
@@ -56,6 +58,11 @@ export const App = () => {
     state.activeId === null ? false : Object.hasOwn(state.streaming, state.activeId)
   )
   const activeId = useChatStore((state) => state.activeId)
+  const activeTitle = useChatStore((state) =>
+    state.activeId === null
+      ? undefined
+      : state.sessions.find((item) => item.id === state.activeId)?.title
+  )
 
   usePreventPageScroll(isMobile)
 
@@ -63,11 +70,28 @@ export const App = () => {
     document.documentElement.lang = locale
   }, [locale])
 
+  // 标签页标题跟随当前会话名称，自动生成与重命名都会同步更新
+  useEffect(() => {
+    document.title = activeId === null ? t('appName') : activeTitle || t('untitledChat')
+  }, [activeId, activeTitle, t])
+
   // 文件数、存储空间达到上限时，附件上只显示「上传失败」，原因用 toast 说明
   useEffect(() => onUploadNotice(showToast), [])
   useEffect(bindChatPersistence, [])
   // 会话 id 与会话地址（/chat/<id>）双向同步
   useEffect(bindSessionUrl, [])
+
+  // Ctrl/Cmd + K 打开对话全文搜索
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        openMessageSearch()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   // 搜索结果面板只属于当前会话
   useEffect(closeSearchPanel, [activeId])
@@ -151,6 +175,7 @@ export const App = () => {
         <HtmlPreviewPanel />
       </div>
       <SettingsDialog />
+      <MessageSearch />
       <MermaidLogDialog />
       <ImageViewer />
       <Toast />

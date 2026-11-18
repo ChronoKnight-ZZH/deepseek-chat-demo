@@ -455,6 +455,24 @@ export const IconSearchWarningOutline16 = () => (
   </svg>
 )
 
+/** 对话气泡：本地对话搜索结果的行图标 */
+export const IconChatOutline20 = () => (
+  <svg width={20} height={20} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M10 3.1c-4.03 0-7.3 2.98-7.3 6.65 0 2.02.99 3.84 2.58 5.08v2.78l2.9-1.63c.58.15 1.19.23 1.82.23 4.03 0 7.3-2.98 7.3-6.65S14.03 3.1 10 3.1Z"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinejoin="round"
+    />
+    <path
+      d="M6.9 8.35h6.2M6.9 11.25h4.2"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+    />
+  </svg>
+)
+
 /** 新对话 */
 export const NewChatIcon = () => {
   return (

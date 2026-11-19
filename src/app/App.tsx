@@ -1,7 +1,10 @@
+import clsx from 'clsx'
 import { useEffect } from 'react'
 import { useTranslate } from '../i18n/index.js'
 import { useSettings } from '../services/settings.js'
-import { useIsMobile, useMobileViewport, usePreventPageScroll } from './viewport.js'
+import { useAuth } from '../services/auth.js'
+import { LoginPage } from '../components/login/LoginPage.js'
+import { useIsMobile, useMobileViewport, usePreventPageScroll, usePushSider } from './viewport.js'
 import {
   bindChatPersistence,
   initChat,
@@ -28,7 +31,7 @@ import { Button } from '../components/base/Button.js'
 import { stopReadAloud } from '../services/speech/readAloud.js'
 import { CollapsedSider } from '../components/sider/CollapsedSider.js'
 import { closeMobileSider, useMobileSider } from '../components/sider/mobileSiderState.js'
-import { DesktopSider, MobileSider } from '../components/sider/Sider.js'
+import { DesktopSider, MobileSider, PushSider } from '../components/sider/Sider.js'
 import { MessageSearch } from '../components/messageSearch/MessageSearch.js'
 import { openMessageSearch } from '../components/messageSearch/messageSearchState.js'
 import styles from './App.module.css'
@@ -36,7 +39,9 @@ import styles from './App.module.css'
 export const App = () => {
   const t = useTranslate()
   const isMobile = useIsMobile()
+  const pushSider = usePushSider()
   const locale = useSettings((state) => state.locale)
+  const loggedIn = useAuth((state) => state.user !== null)
   // 移动端侧边栏以独立抽屉管理开合状态
   const siderSettingCollapsed = useSettings((state) => state.siderCollapsed)
   const siderCollapsed = siderSettingCollapsed && !isMobile
@@ -70,10 +75,14 @@ export const App = () => {
     document.documentElement.lang = locale
   }, [locale])
 
-  // 标签页标题跟随当前会话名称，自动生成与重命名都会同步更新
+  // 标签页标题跟随当前会话名称，自动生成与重命名都会同步更新；未登录时显示登录页标题
   useEffect(() => {
-    document.title = activeId === null ? t('appName') : activeTitle || t('untitledChat')
-  }, [activeId, activeTitle, t])
+    document.title = loggedIn
+      ? activeId === null
+        ? t('appName')
+        : activeTitle || t('untitledChat')
+      : `${t('loginTitle')} · ${t('appName')}`
+  }, [activeId, activeTitle, loggedIn, t])
 
   // 文件数、存储空间达到上限时，附件上只显示「上传失败」，原因用 toast 说明
   useEffect(() => onUploadNotice(showToast), [])
@@ -109,16 +118,42 @@ export const App = () => {
   useEffect(closeMobileSider, [activeId, isMobile])
 
   useEffect(() => {
+    if (!loggedIn) {
+      return
+    }
     void initChat()
     // 首次打开先在设置里输入 API Key
     ensureApiKey()
-  }, [])
+  }, [loggedIn])
+
+  if (!loggedIn) {
+    return (
+      <>
+        <LoginPage />
+        <Toast />
+      </>
+    )
+  }
 
   return (
     <>
       <div ref={frameRef} className={styles.frame}>
-        {isMobile ? <MobileSider /> : <DesktopSider collapsed={siderCollapsed} />}
-        <main className={styles.main}>
+        {isMobile ? (
+          pushSider ? (
+            <PushSider />
+          ) : (
+            <MobileSider />
+          )
+        ) : (
+          <DesktopSider collapsed={siderCollapsed} />
+        )}
+        <main
+          className={clsx(
+            styles.main,
+            isMobile && pushSider && styles.pushLayout,
+            isMobile && pushSider && mobileSiderOpen && styles.pushed
+          )}
+        >
           {saveError ? (
             <div className={styles.saveError} role="alert">
               <span>{t('sessionSaveFailed')}</span>

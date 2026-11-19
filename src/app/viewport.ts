@@ -13,6 +13,16 @@ export const useIsMobile = () => useSyncExternalStore(subscribe, () => query.mat
 /** 非 Hook 场景下判断当前是否为移动端布局 */
 export const isMobileLayout = () => query.matches
 
+/** 宽于 610px 时侧边栏以推开式占据布局，更窄时才使用抽屉浮层 */
+const pushSiderQuery = window.matchMedia('(min-width: 611px)')
+
+const subscribePushSider = (onChange: () => void) => {
+  pushSiderQuery.addEventListener('change', onChange)
+  return () => pushSiderQuery.removeEventListener('change', onChange)
+}
+
+export const usePushSider = () => useSyncExternalStore(subscribePushSider, () => pushSiderQuery.matches)
+
 const preventPageScroll = (event: TouchEvent) => {
   if (event.touches.length !== 1) {
     return

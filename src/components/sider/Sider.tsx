@@ -23,12 +23,17 @@ import { closeMobileSider, useMobileSider } from './mobileSiderState.js'
 import { SessionItem } from './SessionItem.js'
 import styles from './Sider.module.css'
 
+/** Push 模式下侧边栏与主内容的联动动画时长，与 demo 的 0.3s 保持一致 */
+const PUSH_DURATION = 300
+
 /** 展开的侧边栏：名称与收起按钮、开启新对话、按时间分组的会话列表、底部设置；移动端放在抽屉里，收起按钮关闭抽屉 */
 export const Sider = ({
   mobile = false,
+  push = false,
   exiting = false,
 }: {
   mobile?: boolean
+  push?: boolean
   exiting?: boolean
 }) => {
   const t = useTranslate()
@@ -64,7 +69,7 @@ export const Sider = ({
   }, [])
 
   return (
-    <div className={clsx(styles.sider, mobile && styles.mobile, exiting && styles.exiting)}>
+    <div className={clsx(styles.sider, mobile && styles.mobile, push && styles.push, exiting && styles.exiting)}>
       <div className={styles.top}>
         <div className={styles.appName}>{t('appName')}</div>
         <div className={styles.topActions}>
@@ -81,7 +86,7 @@ export const Sider = ({
             icon={<IconPanelLeftOutline16 />}
             tooltip={t('collapseSiderbarButton')}
             tooltipPlacement="bottom"
-            onClick={() => (mobile ? closeMobileSider() : setSiderCollapsed(true))}
+            onClick={() => (mobile || push ? closeMobileSider() : setSiderCollapsed(true))}
           />
         </div>
       </div>
@@ -190,5 +195,19 @@ export const MobileSider = () => {
         <Sider mobile />
       </div>
     </>
+  )
+}
+
+/** 宽度大于 610px 时侧边栏推开主内容：侧边栏滑入的同时主内容同步右移，不遮挡页面。 */
+export const PushSider = () => {
+  const open = useMobileSider((state) => state.open)
+  const { mounted, exiting } = usePresence(open, PUSH_DURATION)
+  if (!mounted) {
+    return null
+  }
+  return (
+    <div className={clsx(styles.pushSider, exiting && styles.pushSiderExiting)}>
+      <Sider push />
+    </div>
   )
 }

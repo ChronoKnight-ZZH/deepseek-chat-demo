@@ -3,7 +3,7 @@
   flex-direction: column;
   flex-shrink: 0;
   box-sizing: border-box;
-  width: 261px;
+  width: var(--sider-width, 261px);
   height: 100%;
   padding: 6px 12px 0;
   border-right: 1px solid var(--dsw-alias-border-l1);
@@ -340,13 +340,54 @@
   }
 }
 
+/* Push 模式：侧边栏脱离布局浮在主内容上方，与主内容的 margin 过渡同步滑入滑出 */
+.push {
+  animation: none;
+}
+
+.pushSider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  animation: push-sider-enter 0.3s ease backwards;
+}
+
+.pushSiderExiting {
+  animation: push-sider-exit 0.3s ease forwards;
+}
+
+@keyframes push-sider-enter {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes push-sider-exit {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-100%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sider,
   .exiting,
   .drawer,
   .drawerExiting,
   .drawerMask,
-  .drawerMaskExiting {
+  .drawerMaskExiting,
+  .pushSider,
+  .pushSiderExiting {
     animation: none;
   }
 }

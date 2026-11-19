@@ -44,15 +44,13 @@
   .welcome {
     flex: 1;
     min-height: 0;
-    justify-content: flex-end;
     max-width: none;
     margin: 0;
-    padding: 0 16px env(safe-area-inset-bottom);
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
   }
 
   .greeting {
     flex-shrink: 0;
-    margin: auto 0;
   }
 
   .caveat {

@@ -49,6 +49,7 @@ export const zh = {
   messageVersions: '消息版本',
   previousVersion: '上一个版本',
   nextVersion: '下一个版本',
+  promptNavigatorLabel: '提示词快速跳转',
   searchResult: '搜索结果',
   mermaidDiagram: '图表',
   mermaidCode: '代码',

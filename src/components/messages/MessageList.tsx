@@ -10,9 +10,10 @@ import type { Session } from '../../services/chat/types.js'
 import { closeSearchPanel } from '../search/searchPanelState.js'
 import { clearMessageJump, useMessageSearch } from '../messageSearch/messageSearchState.js'
 import { AssistantMessage } from './AssistantMessage.js'
+import { PromptNavigator } from './PromptNavigator.js'
 import { ScrollToBottomContext } from './scrollContext.js'
 import { UserMessage } from './UserMessage.js'
-import type { Message } from '../../services/chat/types.js'
+import type { Message, UserMessage as UserMessageType } from '../../services/chat/types.js'
 
 /**
  * 会话共用可重试的附件上传失败入口，覆盖当前提问与历史消息中的附件。
@@ -129,6 +130,27 @@ export const MessageList = ({
     clearMessageJump(jumpTarget)
   }, [jumpTarget, session.id])
 
+  // 右侧提示词跳转列表只关心用户提问，当前版本路径变化时同步更新。
+  const prompts = messages.filter((message): message is UserMessageType => message.role === 'user')
+
+  // 点击提示词：滚动到对应消息并短暂高亮，同时停止底部跟随。
+  const jumpToPrompt = useCallback((messageId: string) => {
+    const element = scrollRef.current?.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(messageId)}"]`
+    )
+    if (!element) {
+      return
+    }
+    stickyRef.current = false
+    closeSearchPanel()
+    element.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    element.classList.remove(styles.highlight)
+    void element.offsetWidth
+    element.classList.add(styles.highlight)
+    clearTimeout(highlightTimer.current)
+    highlightTimer.current = setTimeout(() => element.classList.remove(styles.highlight), 1800)
+  }, [])
+
   const selectVersion = useCallback(
     (messageId: string, anchorTop: number) => {
       if (streaming) {
@@ -171,38 +193,46 @@ export const MessageList = ({
   const uploadRetryId = getUploadRetryId(messages, streaming)
   return (
     <ScrollToBottomContext.Provider value={scrollToBottom}>
-      <div ref={isMobile ? undefined : scrollRef} className={styles.container}>
-        <div ref={isMobile ? scrollRef : undefined} className={styles.scroll}>
-          <div ref={contentRef} className={styles.column}>
-            {messages.map((message, index) =>
-              message.role === 'user' ? (
-                <UserMessage
-                  key={message.id}
-                  sessionId={session.id}
-                  message={message}
-                  retryUploadId={uploadRetryId}
-                  isFirst={index === 0}
-                  isLast={index === lastIndex || index === lastIndex - 1}
-                  busy={streaming}
-                  versions={versions.get(message.id) ?? EMPTY_VERSIONS}
-                  onSelectVersion={selectVersion}
-                />
-              ) : (
-                <AssistantMessage
-                  key={message.id}
-                  sessionId={session.id}
-                  message={message}
-                  isLast={index === lastIndex}
-                  streaming={streaming && index === lastIndex}
-                  busy={streaming}
-                  versions={versions.get(message.id) ?? EMPTY_VERSIONS}
-                  onSelectVersion={selectVersion}
-                />
-              )
-            )}
+      <div className={styles.wrapper}>
+        <div ref={isMobile ? undefined : scrollRef} className={styles.container}>
+          <div ref={isMobile ? scrollRef : undefined} className={styles.scroll}>
+            <div ref={contentRef} className={styles.column}>
+              {messages.map((message, index) =>
+                message.role === 'user' ? (
+                  <UserMessage
+                    key={message.id}
+                    sessionId={session.id}
+                    message={message}
+                    retryUploadId={uploadRetryId}
+                    isFirst={index === 0}
+                    isLast={index === lastIndex || index === lastIndex - 1}
+                    busy={streaming}
+                    versions={versions.get(message.id) ?? EMPTY_VERSIONS}
+                    onSelectVersion={selectVersion}
+                  />
+                ) : (
+                  <AssistantMessage
+                    key={message.id}
+                    sessionId={session.id}
+                    message={message}
+                    isLast={index === lastIndex}
+                    streaming={streaming && index === lastIndex}
+                    busy={streaming}
+                    versions={versions.get(message.id) ?? EMPTY_VERSIONS}
+                    onSelectVersion={selectVersion}
+                  />
+                )
+              )}
+            </div>
           </div>
+          {footer}
         </div>
-        {footer}
+        <PromptNavigator
+          prompts={prompts}
+          versions={versions}
+          scrollRef={scrollRef}
+          onJump={jumpToPrompt}
+        />
       </div>
     </ScrollToBottomContext.Provider>
   )

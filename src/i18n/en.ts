@@ -53,6 +53,7 @@ export const en = {
   messageVersions: 'Message versions',
   previousVersion: 'Previous version',
   nextVersion: 'Next version',
+  promptNavigatorLabel: 'Jump to prompt',
   searchResult: 'Search results',
   mermaidDiagram: 'Diagram',
   mermaidCode: 'Code',

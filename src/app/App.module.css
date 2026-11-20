@@ -1,4 +1,6 @@
 .frame {
+  --sider-width: 261px;
+
   position: absolute;
   inset: 0;
   display: flex;
@@ -12,6 +14,15 @@
   flex-direction: column;
   flex: 1;
   min-width: 0;
+}
+
+/* 611px 以上、768px 以下的移动端布局：侧边栏滑入时主内容同步右移 */
+.pushLayout {
+  transition: margin-left 0.3s ease;
+}
+
+.pushed {
+  margin-left: var(--sider-width);
 }
 
 .content {
@@ -58,5 +69,11 @@
     top: var(--app-viewport-top, 0px);
     bottom: auto;
     height: var(--app-viewport-height, 100dvh);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pushLayout {
+    transition: none;
   }
 }

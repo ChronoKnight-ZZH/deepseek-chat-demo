@@ -16,6 +16,7 @@ import {
   importHistory,
 } from '../../services/chat/backup.js'
 import { useIsMobile } from '../../app/viewport.js'
+import { signOut, useAuth } from '../../services/auth.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
@@ -66,6 +67,7 @@ const SettingsContent = () => {
   const historyImport = useHistoryImport()
   const historyDelete = useHistoryDelete()
   const replacingHistory = useChatStore((state) => state.importingHistory)
+  const account = useAuth((state) => state.user?.account)
   const historyBusy = historyImport.busy || historyDelete.busy || replacingHistory
   return (
     <>
@@ -121,6 +123,25 @@ const SettingsContent = () => {
                     onClick={historyDelete.open}
                   >
                     {t('delete')}
+                  </Button>
+                }
+              />
+              <SettingCell
+                label={t('logout')}
+                description={account}
+                status={null}
+                action={
+                  <Button
+                    variant="outlined"
+                    size="m"
+                    className={styles.cellButton}
+                    onClick={() => {
+                      closeSettings()
+                      signOut()
+                      showToast({ key: 'loginSignedOut' })
+                    }}
+                  >
+                    {t('logout')}
                   </Button>
                 }
               />

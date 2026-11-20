@@ -1,3 +1,11 @@
+.wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .container {
   flex: 1;
   min-height: 0;
@@ -34,6 +42,11 @@
   max-width: calc(100% - 40px);
   margin: 0 auto;
   padding-bottom: 24px;
+}
+
+/* 从提示词列表跳转时，消息顶部与滚动区域留出一点距离 */
+.column [data-message-id] {
+  scroll-margin-top: 24px;
 }
 
 /* 从全文搜索定位到消息时的短暂高亮 */

@@ -16,8 +16,8 @@ import {
   importHistory,
 } from '../../services/chat/backup.js'
 import { useIsMobile } from '../../app/viewport.js'
-import { signOut, useAuth } from '../../services/auth.js'
-import { useChatStore } from '../../services/chat/store.js'
+import { logout, useAuth } from '../../services/auth.js'
+import { stopAllReplies, useChatStore } from '../../services/chat/store.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
   isChineseBrowser,
@@ -36,6 +36,7 @@ import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
 import { showToast } from '../base/toastState.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
+import { ChangePasswordDialog } from './ChangePasswordDialog.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
 
@@ -67,7 +68,9 @@ const SettingsContent = () => {
   const historyImport = useHistoryImport()
   const historyDelete = useHistoryDelete()
   const replacingHistory = useChatStore((state) => state.importingHistory)
-  const account = useAuth((state) => state.user?.account)
+  const account = useAuth((state) => state.username ?? undefined)
+  const [logoutBusy, setLogoutBusy] = useState(false)
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const historyBusy = historyImport.busy || historyDelete.busy || replacingHistory
   return (
     <>
@@ -127,6 +130,22 @@ const SettingsContent = () => {
                 }
               />
               <SettingCell
+                label={t('loginChangePassword')}
+                description={account}
+                status={null}
+                action={
+                  <Button
+                    variant="outlined"
+                    size="m"
+                    className={styles.cellButton}
+                    disabled={logoutBusy}
+                    onClick={() => setChangePasswordOpen(true)}
+                  >
+                    {t('loginChangePassword')}
+                  </Button>
+                }
+              />
+              <SettingCell
                 label={t('logout')}
                 description={account}
                 status={null}
@@ -135,10 +154,18 @@ const SettingsContent = () => {
                     variant="outlined"
                     size="m"
                     className={styles.cellButton}
+                    disabled={logoutBusy}
+                    aria-busy={logoutBusy}
                     onClick={() => {
-                      closeSettings()
-                      signOut()
-                      showToast({ key: 'loginSignedOut' })
+                      if (logoutBusy) {
+                        return
+                      }
+                      setLogoutBusy(true)
+                      stopAllReplies()
+                      void logout().finally(() => {
+                        closeSettings()
+                        showToast({ key: 'loginSignedOut' })
+                      })
                     }}
                   >
                     {t('logout')}
@@ -150,6 +177,9 @@ const SettingsContent = () => {
           )}
         </div>
       </Modal>
+      {changePasswordOpen ? (
+        <ChangePasswordDialog onClose={() => setChangePasswordOpen(false)} />
+      ) : null}
       {historyImport.file ? <ImportConfirm historyImport={historyImport} /> : null}
       {historyDelete.opened ? <DeleteAllConfirm historyDelete={historyDelete} /> : null}
     </>

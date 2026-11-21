@@ -41,7 +41,8 @@ export const App = () => {
   const isMobile = useIsMobile()
   const pushSider = usePushSider()
   const locale = useSettings((state) => state.locale)
-  const loggedIn = useAuth((state) => state.user !== null)
+  const authStatus = useAuth((state) => state.status)
+  const loggedIn = authStatus === 'authenticated'
   // 移动端侧边栏以独立抽屉管理开合状态
   const siderSettingCollapsed = useSettings((state) => state.siderCollapsed)
   const siderCollapsed = siderSettingCollapsed && !isMobile

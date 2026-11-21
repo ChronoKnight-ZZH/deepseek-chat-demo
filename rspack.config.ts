@@ -19,6 +19,8 @@ const cssLoader = {
 type ConfigOptions = {
   /** 公开 API 的地址，注入为 __API_ORIGIN__ */
   apiOrigin?: string
+  /** 认证接口前缀，同源部署默认 /auth；注入为 __AUTH_BASE__ */
+  authBase?: string
   /** 部署目录，如 '/app/'；用于在认不出的地址下兜底解析资源，须以 / 开头和结尾 */
   basePath?: string
   /** 开发服务器配置，支持本地接口代理 */
@@ -28,6 +30,7 @@ type ConfigOptions = {
 /** 创建构建配置，支持自定义 API 地址和开发服务器选项 */
 export const createConfig = ({
   apiOrigin = 'https://api.deepseek.com',
+  authBase = '/auth',
   basePath = '/',
   devServer,
 }: ConfigOptions = {}): Configuration => ({
@@ -85,14 +88,29 @@ export const createConfig = ({
       // 内联脚本据此兜底推断应用根目录（见 src/index.html）
       templateParameters: { appBasePath: basePath },
     }),
-    new rspack.DefinePlugin({ __API_ORIGIN__: JSON.stringify(apiOrigin) }),
+    new rspack.DefinePlugin({
+      __API_ORIGIN__: JSON.stringify(apiOrigin),
+      __AUTH_BASE__: JSON.stringify(authBase),
+    }),
     new rspack.CopyRspackPlugin({
       patterns: [{ from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' }],
     }),
   ],
   performance: { hints: false },
   // 会话地址是真实路径（/chat/<id>），刷新和直链都要回退到 index.html
-  devServer: { port: 8090, historyApiFallback: true, ...devServer },
+  devServer: {
+    port: 8090,
+    historyApiFallback: true,
+    // 本地后端默认监听 3000；生产环境由同源 Nginx 反代
+    proxy: [
+      {
+        context: ['/auth', '/api'],
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+      },
+    ],
+    ...devServer,
+  },
 })
 
 // eslint-disable-next-line import/no-default-export

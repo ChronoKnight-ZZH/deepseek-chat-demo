@@ -513,6 +513,55 @@
   width: 100%;
 }
 
+.changePassword {
+  width: min(420px, calc(100vw - 32px));
+}
+
+.changePasswordForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.passwordField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.passwordInput {
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  outline: none;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+
+  &:focus {
+    border-color: var(--dsw-alias-brand-primary);
+  }
+}
+
+.passwordError {
+  margin: 0;
+  color: var(--dsw-alias-label-error, #d92d20);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.changePasswordActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
 @media not all and (min-width: 768px) {
   .deleteActions > button {
     min-height: 44px;

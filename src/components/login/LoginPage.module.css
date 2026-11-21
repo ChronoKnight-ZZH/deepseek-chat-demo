@@ -169,6 +169,13 @@
   line-height: 22px;
 }
 
+.errorText {
+  margin: 10px 2px 0;
+  color: var(--dsw-alias-label-error, #d92d20);
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .agreementLink {
   color: var(--dsw-alias-label-primary);
   text-decoration: underline;
@@ -259,6 +266,11 @@
 
   &:hover {
     border-color: var(--dsw-alias-border-l2);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.72;
   }
 }
 

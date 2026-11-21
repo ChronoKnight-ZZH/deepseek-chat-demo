@@ -539,6 +539,13 @@ const removeSessionData = async (id: string): Promise<boolean> => {
 
 export const stopReply = (sessionId: string) => getStreamController(sessionId)?.abort()
 
+/** 退出登录、切换账号前停止所有生成，避免继续消耗上游 */
+export const stopAllReplies = () => {
+  for (const controller of Object.values(get().streaming)) {
+    controller.abort()
+  }
+}
+
 /**
  * 提交指定会话的最新草稿；null 表示新建会话。
  * 同步接收成功才清空草稿，附件原件由会话接管；保存失败仍通过保存入口重试。

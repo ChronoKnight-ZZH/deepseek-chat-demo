@@ -11,6 +11,9 @@ declare const __API_ORIGIN__: string
 /** 认证接口前缀，同源部署默认 /auth；见 rspack.config.ts */
 declare const __AUTH_BASE__: string
 
+/** BFF 接口前缀，同源部署默认 /v1；见 rspack.config.ts */
+declare const __BFF_BASE__: string
+
 /** Prism 语言包通过副作用注册到全局 Prism */
 declare module 'prismjs/components/*' {}
 

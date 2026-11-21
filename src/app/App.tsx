@@ -20,7 +20,6 @@ import { closeHtmlPreview } from '../components/htmlPreview/htmlPreviewState.js'
 import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
 import { Welcome } from '../components/session/Welcome.js'
-import { ensureApiKey } from '../components/settings/settingsDialogState.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { ImageViewer } from '../components/base/ImageViewer.js'
 import { MermaidLogDialog } from '../components/markdown/MermaidLogDialog.js'
@@ -122,9 +121,7 @@ export const App = () => {
     if (!loggedIn) {
       return
     }
-    void initChat()
-    // 首次打开先在设置里输入 API Key
-    ensureApiKey()
+    void initChat(true)
   }, [loggedIn])
 
   if (!loggedIn) {

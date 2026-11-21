@@ -2,9 +2,9 @@
 
 [English](README.md) | 简体中文
 
-基于 DeepSeek API 的静态聊天示例。无需应用后端，浏览器直接请求配置的 API 服务。
+基于 DeepSeek API 的聊天示例，所有请求经同源 BFF（`auth-demo`）转发。浏览器不持有 DeepSeek API Key：登录后使用 Bearer Token，聊天、文件和语音请求统一走 `/v1`。
 
-点击 [在线体验](https://deepseek-ai.github.io/chat-demo/) 即可使用，也可以前往 [Releases](https://github.com/deepseek-ai/deepseek-chat-demo/releases) 下载压缩包，解压后双击 `index.html` 在本地使用，无需安装或构建。首次使用时，请在设置中填写 API Key。
+本地开发时，先在 `http://127.0.0.1:3000` 启动 `auth-demo`，再启动前端；开发服务器会把 `/auth`、`/v1` 代理到该后端。不要再直接双击 `dist/index.html`：现在必须通过 BFF，并且需要 HTTPS 或 localhost 安全上下文。
 
 ## 运行
 
@@ -53,15 +53,15 @@ try_files {path} /index.html
 - 流式回答，可在 DeepSeek Flash 与 DeepSeek V4 Pro 模型间切换；支持深度思考、智能搜索、链接阅读与来源引用，以及停止和符合条件的继续生成。
 - 附件上传、粘贴与拖拽，语音输入和回复朗读；移动端录音时输入框首行显示实时频谱。
 - Markdown、代码高亮、KaTeX 公式和 Mermaid 图表。
-- 简体中文与英文、浅色与深色主题、移动端布局、位置设置、历史导入导出。
+- 简体中文与英文、浅色与深色主题、移动端布局、位置设置、历史导出。
 
 ## 数据
 
-API Key 和设置保存在浏览器 localStorage，会话及附件原件保存在 IndexedDB，本地数据按浏览器用户配置和站点源（origin）隔离。发送对话、上传附件和使用语音功能时，相应内容会提交给配置的 API 服务。
+设置仍保存在浏览器 localStorage。会话和消息通过 BFF 保存到 MySQL；IndexedDB 只作为本地缓存与附件原件存储。API Key 不再保存到浏览器，只存在于 BFF 服务端环境变量。
 
-设置中的历史导入导出使用 ZIP 格式。导入会在确认并校验成功后替换全部本地会话和附件；导出包含会话与本地可用的图片原件，不包含 API Key、设置或非图片附件原件。格式与保留范围见[历史导入导出](src/services/chat/history/README.md)。
+设置中的导出会从服务端会话与本地可用图片生成 ZIP。浏览器端不再提供历史导入，历史统一由服务器 CLI 导入；导出不包含设置或非图片附件原件。格式与保留范围见[历史导入导出](src/services/chat/history/README.md)。
 
-设置 → 数据管理 → 删除所有对话，会在确认后清空全部本地会话、附件原件和未发送的草稿，停止正在生成的回复并回到新对话。API Key 和其他设置保留，已上传到 API 服务的文件不受影响。
+设置 → 数据管理 → 删除所有对话，会在确认后删除服务端全部会话并清空本地缓存，停止正在生成的回复并回到新对话。应用设置保留，已经通过 BFF 上传的文件不受影响。
 
 ## 开发
 
@@ -73,7 +73,7 @@ API Key 和设置保存在浏览器 localStorage，会话及附件原件保存�
 | `pnpm lint`   | oxlint 检查         |
 | `pnpm format` | oxfmt 格式化        |
 
-[rspack.config.ts](rspack.config.ts) 默认连接 `https://api.deepseek.com`。`createConfig({ apiOrigin, devServer })` 支持自定义 API 地址和开发服务器代理。
+[rspack.config.ts](rspack.config.ts) 默认 `__AUTH_BASE__ = /auth`、`__BFF_BASE__ = /v1`，均为同源路径。`createConfig({ authBase, bffBase, devServer })` 支持自定义；开发服务器把 `/auth`、`/v1`、`/api` 代理到 `http://127.0.0.1:3000`。
 
 聊天默认使用 `deepseek-flash`，通过 Anthropic 兼容的 Messages / Files API 通信；语音使用 ASR / TTS 接口。请求使用搜索、链接阅读、标题和 `latest_reminder` 等扩展，接入服务需支持相应能力。附件实际支持的格式以服务端校验为准。
 

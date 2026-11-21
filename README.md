@@ -2,9 +2,9 @@
 
 English | [简体中文](README.zh-CN.md)
 
-A static chat demo powered by the DeepSeek API. No application backend is required: the browser connects directly to the configured API service.
+A chat demo powered by the DeepSeek API through a same-origin BFF (`auth-demo`). The browser never holds a DeepSeek API key: login returns a Bearer token, and chat, file, and speech requests go through `/v1`.
 
-You can [try the app online](https://deepseek-ai.github.io/chat-demo/) or download the archive from [Releases](https://github.com/deepseek-ai/deepseek-chat-demo/releases), extract it, and double-click `index.html` to use it locally without installation or a build. Enter your API key in Settings before your first chat.
+For local development, start `auth-demo` on `http://127.0.0.1:3000`, then run the frontend here. The dev server proxies `/auth` and `/v1` to that backend. Do not open `dist/index.html` directly: the app now requires the BFF and an HTTPS (or localhost) origin.
 
 ## Getting started
 
@@ -53,15 +53,15 @@ Deploying under a subdirectory (such as `https://example.com/app/`) needs no ext
 - Streaming replies with a choice of DeepSeek Flash and DeepSeek V4 Pro models, deep thinking, smart search, link reading, and source citations; stop generation or continue eligible replies.
 - Upload, paste, or drag and drop attachments; use voice input and read replies aloud. A live audio spectrum appears in the first row of the input area while recording on mobile.
 - Markdown, syntax highlighting, KaTeX math, and Mermaid diagrams.
-- Simplified Chinese and English, light and dark themes, mobile layouts, location settings, and chat history import and export.
+- Simplified Chinese and English, light and dark themes, mobile layouts, location settings, and chat history export.
 
 ## Data and storage
 
-Your API key and settings are stored in the browser's localStorage. Conversations and original attachments are stored in IndexedDB. Local data is isolated by browser profile and site origin. Sending messages, uploading attachments, and using speech features sends the relevant content to the configured API service.
+Settings remain in browser localStorage. Conversations and messages are stored in MySQL through the BFF; IndexedDB keeps a local cache and original attachments. The DeepSeek API key is no longer stored in the browser; it lives only in the BFF environment.
 
-History import and export in Settings use ZIP archives. After confirmation and successful validation, importing replaces all local conversations and attachments. Exports include conversations and locally available original images, but exclude API keys, settings, and original non-image attachments. See the [history import/export documentation (Chinese)](src/services/chat/history/README.md) for the archive format and preservation details.
+Export in Settings produces a ZIP archive from the server-side conversations and locally available images. Browser-side history import is intentionally not provided: history is imported by the server CLI. Exports exclude settings and original non-image attachments. See the [history import/export documentation (Chinese)](src/services/chat/history/README.md) for the archive format and preservation details.
 
-Settings → Data → Delete all chats clears all local conversations, original attachments, and unsent drafts after confirmation. It stops ongoing replies and returns to a new chat. Your API key and settings are preserved; files already uploaded to the API service are not deleted.
+Settings → Data → Delete all chats deletes all conversations from the server and clears the local cache after confirmation. It stops ongoing replies and returns to a new chat. App settings are preserved; files already uploaded through the BFF are not deleted.
 
 ## Development
 
@@ -73,7 +73,7 @@ Settings → Data → Delete all chats clears all local conversations, original 
 | `pnpm lint`   | Lint with oxlint             |
 | `pnpm format` | Format with oxfmt            |
 
-[rspack.config.ts](rspack.config.ts) uses `https://api.deepseek.com` by default. Use `createConfig({ apiOrigin, devServer })` to customize the API origin and development server proxy.
+[rspack.config.ts](rspack.config.ts) defaults to `__AUTH_BASE__ = /auth` and `__BFF_BASE__ = /v1`, both same-origin. Use `createConfig({ authBase, bffBase, devServer })` to customize them. The development server proxies `/auth`, `/v1`, and `/api` to `http://127.0.0.1:3000`.
 
 Chat uses `deepseek-flash` by default through Anthropic-compatible Messages / Files APIs. Speech features use ASR / TTS endpoints. Requests include extensions for search, link reading, titles, and `latest_reminder`, so the configured service must support the corresponding capabilities. Supported attachment formats are determined by server-side validation.
 

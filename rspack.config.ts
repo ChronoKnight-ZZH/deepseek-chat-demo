@@ -21,6 +21,8 @@ type ConfigOptions = {
   apiOrigin?: string
   /** 认证接口前缀，同源部署默认 /auth；注入为 __AUTH_BASE__ */
   authBase?: string
+  /** BFF 接口前缀，同源部署默认 /v1；注入为 __BFF_BASE__ */
+  bffBase?: string
   /** 部署目录，如 '/app/'；用于在认不出的地址下兜底解析资源，须以 / 开头和结尾 */
   basePath?: string
   /** 开发服务器配置，支持本地接口代理 */
@@ -31,6 +33,7 @@ type ConfigOptions = {
 export const createConfig = ({
   apiOrigin = 'https://api.deepseek.com',
   authBase = '/auth',
+  bffBase = '/v1',
   basePath = '/',
   devServer,
 }: ConfigOptions = {}): Configuration => ({
@@ -91,6 +94,7 @@ export const createConfig = ({
     new rspack.DefinePlugin({
       __API_ORIGIN__: JSON.stringify(apiOrigin),
       __AUTH_BASE__: JSON.stringify(authBase),
+      __BFF_BASE__: JSON.stringify(bffBase),
     }),
     new rspack.CopyRspackPlugin({
       patterns: [{ from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' }],
@@ -104,7 +108,7 @@ export const createConfig = ({
     // 本地后端默认监听 3000；生产环境由同源 Nginx 反代
     proxy: [
       {
-        context: ['/auth', '/api'],
+        context: ['/auth', '/v1', '/api'],
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
       },

@@ -1,3 +1,4 @@
+import { listAllSessions as listAllSessionsApi } from '../api/sessions.js'
 import { getVisibleMessages, normalizeSession } from './branches.js'
 import { loadAllSessions } from './db.js'
 import type { Message, TextPart } from './types.js'
@@ -77,7 +78,14 @@ export const searchMessages = async (query: string): Promise<MessageSearchHit[]>
     return []
   }
   const hits: MessageSearchHit[] = []
-  for (const stored of await loadAllSessions()) {
+  let storedSessions
+  try {
+    storedSessions = await listAllSessionsApi()
+  } catch {
+    // 服务端不可用时退回本地缓存；搜索仍是只读操作
+    storedSessions = await loadAllSessions()
+  }
+  for (const stored of storedSessions) {
     const session = normalizeSession(stored)
     for (const message of getVisibleMessages(session)) {
       const text = getSearchableText(message)

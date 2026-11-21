@@ -7,15 +7,12 @@ import {
   IconFollowsystemOutline16,
   IconLightOutline16,
   IconSettingsOutline16,
-  IconUploadOutline14,
 } from '../base/icons.js'
 import {
   BackupError,
   clearHistory,
   exportHistory,
-  importHistory,
 } from '../../services/chat/backup.js'
-import { useIsMobile } from '../../app/viewport.js'
 import { logout, useAuth } from '../../services/auth.js'
 import { stopAllReplies, useChatStore } from '../../services/chat/store.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
@@ -35,7 +32,6 @@ import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
 import { showToast } from '../base/toastState.js'
-import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
 import { ChangePasswordDialog } from './ChangePasswordDialog.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
@@ -60,18 +56,14 @@ const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode
 
 const SettingsContent = () => {
   const t = useTranslate()
-  const isMobile = useIsMobile()
   // 打开时按调用方指定的分组选中，之后在弹窗内切换
   const [section, setSection] = useState(() => useSettingsDialog.getState().section)
-  // 切换分组不丢失正在输入的 API Key 与导入状态
-  const apiKeyEditor = useApiKeyEditor()
-  const historyImport = useHistoryImport()
   const historyDelete = useHistoryDelete()
   const replacingHistory = useChatStore((state) => state.importingHistory)
   const account = useAuth((state) => state.username ?? undefined)
   const [logoutBusy, setLogoutBusy] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
-  const historyBusy = historyImport.busy || historyDelete.busy || replacingHistory
+  const historyBusy = historyDelete.busy || replacingHistory
   return (
     <>
       <Modal
@@ -111,8 +103,6 @@ const SettingsContent = () => {
             </>
           ) : (
             <>
-              <ApiKeyField editor={apiKeyEditor} />
-              <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
               <SettingCell
                 label={t('deleteAllSessions')}
@@ -172,7 +162,6 @@ const SettingsContent = () => {
                   </Button>
                 }
               />
-              {isMobile ? <ApiKeyConfirm editor={apiKeyEditor} /> : null}
             </>
           )}
         </div>
@@ -180,7 +169,6 @@ const SettingsContent = () => {
       {changePasswordOpen ? (
         <ChangePasswordDialog onClose={() => setChangePasswordOpen(false)} />
       ) : null}
-      {historyImport.file ? <ImportConfirm historyImport={historyImport} /> : null}
       {historyDelete.opened ? <DeleteAllConfirm historyDelete={historyDelete} /> : null}
     </>
   )
@@ -406,34 +394,6 @@ const SystemPromptSetting = () => {
   )
 }
 
-/** 覆盖导入的二次确认，叠在设置弹窗上 */
-const ImportConfirm = ({
-  historyImport,
-}: {
-  historyImport: ReturnType<typeof useHistoryImport>
-}) => {
-  const t = useTranslate()
-  return (
-    <Modal
-      title={t('historyImportConfirmTitle')}
-      className={styles.importConfirm}
-      onClose={historyImport.cancel}
-      footer={
-        <>
-          <Button variant="outlined" size="m" autoFocus onClick={historyImport.cancel}>
-            {t('cancel')}
-          </Button>
-          <Button variant="dangerOutlined" size="m" onClick={() => void historyImport.confirm()}>
-            {t('historyImportConfirm')}
-          </Button>
-        </>
-      }
-    >
-      <div className={styles.importConfirmText}>{t('historyImportConfirmDescription')}</div>
-    </Modal>
-  )
-}
-
 const themeOptions: { value: ThemePreference; label: TranslationKey; icon: ReactNode }[] = [
   {
     value: 'light',
@@ -525,82 +485,6 @@ const SettingCell = ({
       </div>
       {action}
     </div>
-  )
-}
-
-/** 选文件后先提示覆盖；确认后才检查文件并执行导入，任何错误都提示导入失败。 */
-const useHistoryImport = () => {
-  const [file, setFile] = useState<File | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [status, setStatus] = useState<Status>(null)
-  const importing = useRef(false)
-
-  const confirm = async () => {
-    if (!file || importing.current) {
-      return
-    }
-    importing.current = true
-    setFile(null)
-    setBusy(true)
-    setStatus(null)
-    try {
-      const count = await importHistory(file)
-      setStatus({ key: count === 1 ? 'historyImportedOne' : 'historyImported', params: { count } })
-    } catch {
-      setStatus({ key: 'historyImportFailed', error: true })
-    } finally {
-      importing.current = false
-      setBusy(false)
-    }
-  }
-
-  return { file, busy, status, select: setFile, cancel: () => setFile(null), confirm }
-}
-
-/** 导入 = 覆盖：用选中文件替换本地全部会话与附件。 */
-const ImportHistory = ({
-  historyImport,
-  disabled,
-}: {
-  historyImport: ReturnType<typeof useHistoryImport>
-  disabled: boolean
-}) => {
-  const t = useTranslate()
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  return (
-    <SettingCell
-      label={t('historyImport')}
-      description={t('historyImportDescription')}
-      status={historyImport.status}
-      action={
-        <>
-          <Button
-            variant="outlined"
-            size="m"
-            className={clsx(styles.cellButton, styles.uploadButton)}
-            disabled={disabled}
-            onClick={() => inputRef.current?.click()}
-          >
-            <IconUploadOutline14 />
-            {t('upload')}
-          </Button>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".zip,application/zip,application/x-zip-compressed"
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              event.target.value = ''
-              if (file) {
-                historyImport.select(file)
-              }
-            }}
-          />
-        </>
-      }
-    />
   )
 }
 

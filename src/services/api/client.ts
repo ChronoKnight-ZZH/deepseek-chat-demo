@@ -1,20 +1,16 @@
 import { translate, type TranslationMessage } from '../../i18n/index.js'
+import { getAuthToken, handleUnauthorized } from '../auth.js'
 import { readMessageEvent } from './parseEvent.js'
 import { readServerSentEvents } from './sse.js'
 import type {
-  ApiErrorBody,
   CreateMessageRequest,
   FileObject,
   FilePurpose,
   MessageStreamEvent,
 } from './types.js'
 
-/** 构建期 API 地址，默认 https://api.deepseek.com；本地开发支持开发服务器代理 */
-export const API_ORIGIN = __API_ORIGIN__
-/** Anthropic 兼容接口的前缀 */
-const ANTHROPIC_BASE_URL = `${API_ORIGIN}/anthropic/v1`
-/** 引用 Files API 上传的图片、调用 Anthropic 兼容 Files API 时必须携带 */
-const FILES_BETA = 'files-api-2025-04-14'
+/** 同源 BFF 前缀；开发环境由 rspack devServer 代理到 auth-demo */
+export const BFF_BASE = __BFF_BASE__.replace(/\/+$/, '')
 
 export type ApiErrorKind =
   /** 非 2xx 响应 */
@@ -30,23 +26,43 @@ export type ApiErrorKind =
 
 export class ApiError extends Error {
   readonly localMessage?: TranslationMessage
+  /** BFF 稳定错误码，如 CURSOR_EXPIRED / UPSTREAM_TIMEOUT */
+  readonly code?: string
+  /** 429 时服务端要求的等待秒数 */
+  readonly retryAfter?: number
 
   constructor(
     readonly kind: ApiErrorKind,
     message: string | TranslationMessage,
-    readonly status?: number
+    readonly status?: number,
+    options: { code?: string; retryAfter?: number } = {}
   ) {
     super(typeof message === 'string' ? message : translate(message.key, message.params))
     this.name = 'ApiError'
     this.localMessage = typeof message === 'string' ? undefined : message
+    this.code = options.code
+    this.retryAfter = options.retryAfter
   }
 }
 
-const isErrorBody = (value: unknown): value is ApiErrorBody =>
-  typeof value === 'object' &&
-  value !== null &&
-  'error' in value &&
-  typeof (value as ApiErrorBody).error?.message === 'string'
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
+
+const readRetryAfter = (response: Response): number | undefined => {
+  const header = response.headers.get('Retry-After')
+  if (!header) {
+    return undefined
+  }
+  const seconds = Number(header)
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds)
+  }
+  const date = Date.parse(header)
+  if (!Number.isNaN(date)) {
+    return Math.max(0, Math.ceil((date - Date.now()) / 1000))
+  }
+  return undefined
+}
 
 const readErrorResponse = async (
   response: Response,
@@ -55,21 +71,46 @@ const readErrorResponse = async (
 ): Promise<ApiError> => {
   const text = await response.text().catch(() => '')
   let message = text || fallback
+  let code: string | undefined
   try {
     const body: unknown = JSON.parse(text)
-    if (isErrorBody(body)) {
-      message = body.error.message
+    if (isRecord(body)) {
+      if (isRecord(body.error) && typeof body.error.message === 'string') {
+        message = body.error.message
+      } else if (typeof body.message === 'string' && body.message) {
+        message = body.message
+      }
+      if (typeof body.code === 'string') {
+        code = body.code
+      }
     }
   } catch {
     // 非 JSON 响应体直接展示原文
   }
-  return new ApiError(kind, message, response.status)
+  return new ApiError(kind, message, response.status, {
+    code,
+    retryAfter: readRetryAfter(response),
+  })
 }
 
-export const request = async (url: string, init: RequestInit): Promise<Response> => {
+/** 同源请求：自动带 Bearer，401 统一切回登录页 */
+export const request = async (path: string, init: RequestInit = {}): Promise<Response> => {
+  const headers = new Headers(init.headers)
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json')
+  }
+  const token = getAuthToken()
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
   let response: Response
   try {
-    response = await fetch(url, init)
+    response = await fetch(`${BFF_BASE}${path}`, {
+      ...init,
+      headers,
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
   } catch (error) {
     if (init.signal?.aborted) {
       throw error
@@ -77,33 +118,16 @@ export const request = async (url: string, init: RequestInit): Promise<Response>
     throw new ApiError('network', error instanceof Error ? error.message : String(error))
   }
   if (!response.ok) {
+    if (response.status === 401) {
+      handleUnauthorized()
+    }
     throw await readErrorResponse(response)
   }
   return response
 }
 
-const anthropicHeaders = (apiKey: string, beta: boolean): Record<string, string> => ({
-  // DeepSeek 兼容接口的鉴权方式，也可使用 Authorization: Bearer。
-  'x-api-key': apiKey,
-  // Files API 和通过 file_id 引用图片时必传；纯文本聊天无需携带。
-  ...(beta ? { 'anthropic-beta': FILES_BETA } : {}),
-})
-
-/** 用 GET /models 校验 API Key（不产生费用） */
-export const verifyApiKey = async (apiKey: string, signal?: AbortSignal): Promise<void> => {
-  await request(`${API_ORIGIN}/models`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    signal,
-  })
-}
-
-/**
- * POST /anthropic/v1/files 上传附件（不设过期时间，会话里的历史附件一直可用）。
- * purpose 为 null 时不传该字段（图片）；purpose 必须排在 file 之前。
- */
+/** 上传附件：multipart 透传到 BFF，由服务端持有上游 Key */
 export const uploadFile = async (
-  apiKey: string,
   file: File,
   purpose: FilePurpose | null,
   signal?: AbortSignal
@@ -113,77 +137,177 @@ export const uploadFile = async (
     form.append('purpose', purpose)
   }
   form.append('file', file)
-  const response = await request(`${ANTHROPIC_BASE_URL}/files`, {
-    method: 'POST',
-    headers: anthropicHeaders(apiKey, true),
-    body: form,
-    signal,
-  })
+  const response = await request('/files', { method: 'POST', body: form, signal })
   return (await response.json()) as FileObject
 }
 
-/** DELETE /anthropic/v1/files/{file_id} */
-export const deleteFile = async (apiKey: string, fileId: string): Promise<void> => {
-  await request(`${ANTHROPIC_BASE_URL}/files/${encodeURIComponent(fileId)}`, {
-    method: 'DELETE',
-    headers: anthropicHeaders(apiKey, true),
-  })
+/** DELETE /v1/files/{file_id} */
+export const deleteFile = async (fileId: string): Promise<void> => {
+  await request(`/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
 }
 
-const hasFile = (body: CreateMessageRequest) =>
-  body.messages.some(
-    (message) =>
-      typeof message.content !== 'string' &&
-      message.content.some((block) => block.type === 'image' || block.type === 'document')
-  )
+/** 用户主动停止生成；失败不阻塞本地停止 */
+export const stopChat = async (requestId: string): Promise<void> => {
+  try {
+    await request('/chat/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId }),
+    })
+  } catch {
+    // 停止是尽力而为：服务端还有孤儿超时兜底
+  }
+}
+
+export type StreamChatOptions = {
+  requestId: string
+  body: CreateMessageRequest
+  signal: AbortSignal
+}
+
+type RelayMeta = { requestId?: string; cursor?: number; resumed?: boolean; cached?: boolean }
+type RelayEnd = { requestId?: string; status?: string; code?: string | null; finishReason?: string | null }
+
+const delay = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+
+const readJson = <T>(data: string): T | null => {
+  try {
+    return JSON.parse(data) as T
+  } catch {
+    return null
+  }
+}
 
 /**
- * POST /anthropic/v1/messages（stream: true），逐个产出流式事件，收到 message_stop 时结束。
- * ping、保活注释与无法解析的内容不产出；中止请求时抛出 signal 的 AbortError。
+ * 通过 BFF 请求聊天流。
+ *
+ * - 服务端会先发 `relay_meta`，再逐帧透传 Anthropic 事件，最后发 `relay_end`
+ * - 内容帧带单调递增 `id`；断线后用 `Last-Event-ID` 的等价参数 `cursor` 续推
+ * - 首帧之前失败用普通 HTTP 状态码；首帧之后失败用 `relay_end` 的 code 收场
  */
-export async function* streamMessage(
-  apiKey: string,
-  body: CreateMessageRequest,
-  signal: AbortSignal
-): AsyncGenerator<MessageStreamEvent> {
-  const response = await request(`${ANTHROPIC_BASE_URL}/messages`, {
-    method: 'POST',
-    headers: {
-      ...anthropicHeaders(apiKey, hasFile(body)),
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-    },
-    body: JSON.stringify({ ...body, stream: true }),
-    signal,
-  })
-  const contentType = response.headers.get('Content-Type') ?? ''
-  if (!response.body || !contentType.includes('text/event-stream')) {
-    throw await readErrorResponse(response, 'protocol', '')
-  }
-  for await (const { event: eventName, data } of readServerSentEvents(response.body, signal)) {
-    let payload: unknown
+export async function* streamChat({
+  requestId,
+  body,
+  signal,
+}: StreamChatOptions): AsyncGenerator<MessageStreamEvent> {
+  let lastSeq = 0
+  let started = false
+
+  for (let attempt = 0; ; attempt += 1) {
     try {
-      payload = JSON.parse(data)
-    } catch {
-      if (eventName !== 'error') {
-        continue
+      const response =
+        started && lastSeq > 0
+          ? await request(
+              `/chat/stream?requestId=${encodeURIComponent(requestId)}&cursor=${lastSeq}`,
+              {
+                method: 'GET',
+                headers: { Accept: 'text/event-stream' },
+                signal,
+              }
+            )
+          : await request('/chat/stream', {
+              method: 'POST',
+              headers: {
+                Accept: 'text/event-stream',
+                'Content-Type': 'application/json',
+                'X-Request-Id': requestId,
+              },
+              body: JSON.stringify({ ...body, stream: true }),
+              signal,
+            })
+
+      const contentType = response.headers.get('Content-Type') ?? ''
+      if (!response.body || !contentType.includes('text/event-stream')) {
+        throw new ApiError('protocol', '', response.status)
       }
-    }
-    if (isErrorBody(payload)) {
-      throw new ApiError('stream', payload.error.message)
-    }
-    if (eventName === 'error') {
-      throw new ApiError('stream', data)
-    }
-    const event = readMessageEvent(payload)
-    if (!event) {
-      continue
-    }
-    yield event
-    if (event.type === 'message_stop') {
-      return
+
+      for await (const event of readServerSentEvents(response.body, signal)) {
+        started = true
+
+        if (event.event === 'relay_meta') {
+          readJson<RelayMeta>(event.data)
+          continue
+        }
+
+        if (event.event === 'relay_end') {
+          const end = readJson<RelayEnd>(event.data)
+          if (end?.status === 'error') {
+            if (end.code === 'ABORTED') {
+              return
+            }
+            throw new ApiError('stream', end.code || 'UPSTREAM_ERROR', undefined, {
+              code: end.code || undefined,
+            })
+          }
+          return
+        }
+
+        if (event.event === 'error') {
+          throw new ApiError('stream', event.data)
+        }
+
+        // 只对内容帧做去重；relay_meta / relay_end 不参与游标
+        const seq = Number(event.lastEventId)
+        if (Number.isSafeInteger(seq) && seq > 0) {
+          if (seq <= lastSeq) {
+            continue
+          }
+          lastSeq = seq
+        }
+
+        const payload = readJson<unknown>(event.data)
+        if (!isRecord(payload)) {
+          continue
+        }
+        const messageEvent = readMessageEvent(payload)
+        if (!messageEvent) {
+          continue
+        }
+        yield messageEvent
+        if (messageEvent.type === 'message_stop') {
+          return
+        }
+      }
+
+      if (signal.aborted) {
+        return
+      }
+      // 没有 message_stop 也没有 relay_end：按断流处理，尝试续推
+      throw new ApiError('interrupted', '')
+    } catch (error) {
+      if (signal.aborted) {
+        throw error
+      }
+      if (error instanceof ApiError) {
+        if (error.status === 401 || error.status === 403 || error.status === 410) {
+          throw error
+        }
+        if (error.kind === 'stream') {
+          throw error
+        }
+      }
+      if (attempt >= 2) {
+        throw error
+      }
+      const retryable =
+        !(error instanceof ApiError) ||
+        error.kind === 'network' ||
+        error.kind === 'interrupted'
+      if (!retryable) {
+        throw error
+      }
+      await delay(300 * (attempt + 1), signal)
     }
   }
-  // 服务端没有提供错误内容时保持为空，不推测断流原因。
-  throw new ApiError('interrupted', '')
 }

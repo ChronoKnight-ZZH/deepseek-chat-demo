@@ -78,6 +78,26 @@ const getDB = () =>
 export const loadSessionSummaries = async (): Promise<SessionSummary[]> =>
   (await (await getDB()).getAll('sessionSummaries')).map(toSessionSummary)
 
+/**
+ * 用服务端列表更新本地摘要缓存，只做 upsert，保留已有的 fileIds 引用。
+ * 服务端已删除的会话不在列表中，但本地缓存留着也不影响展示（列表以服务端为准）。
+ */
+export const upsertSessionSummaries = async (summaries: SessionSummary[]): Promise<void> => {
+  if (summaries.length === 0) {
+    return
+  }
+  const tx = (await getDB()).transaction('sessionSummaries', 'readwrite')
+  await Promise.all([
+    (async () => {
+      for (const summary of summaries) {
+        const existing = await tx.store.get(summary.id)
+        await tx.store.put({ ...summary, fileIds: existing?.fileIds ?? [] })
+      }
+    })(),
+    tx.done,
+  ])
+}
+
 export const loadSession = async (id: string): Promise<Session | undefined> =>
   (await getDB()).get('sessions', id)
 

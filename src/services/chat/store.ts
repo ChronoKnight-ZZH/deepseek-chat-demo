@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
-import { ApiError, streamMessage } from '../api/client.js'
+import { ApiError, stopChat, streamChat } from '../api/client.js'
+import {
+  deleteSession as deleteSessionApi,
+  getSession as getSessionApi,
+  listSessions as listSessionsApi,
+  saveSession as saveSessionApi,
+} from '../api/sessions.js'
 import type { CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
@@ -56,6 +62,24 @@ const serverTools = (search: boolean): CreateMessageRequest['tools'] => {
 
 /** 允许自动补标题的请求；手动重命名后取消本轮标题写入，包含主动清空标题的情况。 */
 const titleRequests = new Set<AbortController>()
+
+/** 当前会话正在进行的 BFF Run ID；停止生成时用它通知服务端中止 producer */
+const runIds = new Map<string, string>()
+
+/** 同一会话的服务端保存串行化，避免旧快照覆盖新快照 */
+const serverSaves = new Map<string, Promise<void>>()
+
+const saveSessionToServer = (session: Session): Promise<void> => {
+  const previous = serverSaves.get(session.id) ?? Promise.resolve()
+  const next = previous.catch(() => {}).then(() => saveSessionApi(session))
+  serverSaves.set(session.id, next)
+  void next.finally(() => {
+    if (serverSaves.get(session.id) === next) {
+      serverSaves.delete(session.id)
+    }
+  }).catch(() => {})
+  return next
+}
 
 type ChatState = {
   ready: boolean
@@ -179,47 +203,64 @@ const updateReply = (sessionId: string, reply: AssistantMessage) =>
 
 const persist = (sessionId: string) => {
   const session = getSession(sessionId)
-  if (session) {
-    unsavedSessions.add(sessionId)
-    if (deletingSessions.has(sessionId)) {
-      return
-    }
-    const epoch = historyEpoch
-    const files = pendingFiles.get(sessionId)
-    void db
-      .saveSession(session, files)
-      .then(() => {
-        if (epoch !== historyEpoch || !getSession(sessionId)) {
-          return
-        }
-        if (pendingFiles.get(sessionId) === files) {
-          pendingFiles.delete(sessionId)
-        }
-        if (getSession(sessionId) === session) {
-          unsavedSessions.delete(sessionId)
-          set((state) => ({
-            sessionSaveErrors: Object.fromEntries(
-              Object.entries(state.sessionSaveErrors).filter(([id]) => id !== sessionId)
-            ),
-          }))
-          trimSessionCache()
-        }
-      })
-      .catch((error: unknown) => {
-        db.reportStorageError('save session')(error)
-        if (epoch === historyEpoch && getSession(sessionId)) {
-          set((state) => ({
-            sessionSaveErrors: { ...state.sessionSaveErrors, [sessionId]: true },
-          }))
-        }
-      })
+  if (!session) {
+    return
   }
+  unsavedSessions.add(sessionId)
+  if (deletingSessions.has(sessionId)) {
+    return
+  }
+  const epoch = historyEpoch
+  const files = pendingFiles.get(sessionId)
+
+  // 本地 IndexedDB 只作为缓存；失败不阻塞云端保存
+  void db
+    .saveSession(session, files)
+    .then(() => {
+      if (epoch !== historyEpoch || !getSession(sessionId)) {
+        return
+      }
+      if (pendingFiles.get(sessionId) === files) {
+        pendingFiles.delete(sessionId)
+      }
+    })
+    .catch((error: unknown) => {
+      db.reportStorageError('save session cache')(error)
+    })
+
+  // 服务端为准：成功后清除未保存标记；失败保留，供“重试”使用
+  void saveSessionToServer(session)
+    .then(() => {
+      if (epoch !== historyEpoch || getSession(sessionId) !== session) {
+        return
+      }
+      unsavedSessions.delete(sessionId)
+      set((state) => ({
+        sessionSaveErrors: Object.fromEntries(
+          Object.entries(state.sessionSaveErrors).filter(([id]) => id !== sessionId)
+        ),
+      }))
+      trimSessionCache()
+    })
+    .catch((error: unknown) => {
+      db.reportStorageError('save session to server')(error)
+      if (epoch === historyEpoch && getSession(sessionId) === session) {
+        set((state) => ({
+          sessionSaveErrors: { ...state.sessionSaveErrors, [sessionId]: true },
+        }))
+      }
+    })
 }
 
 export const retrySaveSessions = () => {
   if (!get().importingHistory) {
     unsavedSessions.forEach(persist)
   }
+}
+
+/** 等待当前所有服务端保存完成；删除/清空前调用，避免旧快照把已删会话写回来 */
+export const waitForServerSaves = async (): Promise<void> => {
+  await Promise.allSettled([...serverSaves.values()])
 }
 
 /** 离开前先合并尚未绘制的增量；隐藏期间浏览器可能暂停动画帧。 */
@@ -286,26 +327,57 @@ const settleInterrupted = (session: Session): Session => {
   }
 }
 
-export const initChat = (): Promise<void> => {
-  if (get().ready) {
+export const initChat = (force = false): Promise<void> => {
+  if (get().ready && !force) {
     return Promise.resolve()
   }
   if (initTask) {
     return initTask
   }
+  if (force) {
+    // 登录/切换账号后强制以服务端列表为准，清掉上一个账号的内存状态
+    historyEpoch += 1
+    sessionLoads.clear()
+    sessionAccess.clear()
+    unsavedSessions.clear()
+    pendingFiles.clear()
+    clearAllDrafts()
+    set({
+      ready: false,
+      initError: false,
+      sessions: [],
+      sessionCache: {},
+      sessionLoadErrors: {},
+      sessionSaveErrors: {},
+      activeId: null,
+    })
+  }
   const epoch = historyEpoch
   set({ initError: false })
   initTask = (async () => {
     try {
-      const summaries = await db.loadSessionSummaries()
+      const summaries = await listSessionsApi()
       if (epoch === historyEpoch) {
         set({ ready: true, sessions: sortSessions(summaries) })
       }
+      void db.upsertSessionSummaries(summaries).catch(db.reportStorageError('update session cache'))
     } catch (error) {
-      if (epoch === historyEpoch) {
-        set({ initError: true })
-        db.reportStorageError('read local sessions')(error)
+      if (epoch !== historyEpoch) {
+        return
       }
+      // 服务端不可用时退回本地缓存；若缓存也为空，展示启动失败与重试
+      try {
+        const summaries = await db.loadSessionSummaries()
+        if (epoch === historyEpoch) {
+          set({ ready: true, sessions: sortSessions(summaries) })
+        }
+      } catch (cacheError) {
+        if (epoch === historyEpoch) {
+          set({ initError: true })
+          db.reportStorageError('read local sessions')(cacheError)
+        }
+      }
+      db.reportStorageError('read server sessions')(error)
     } finally {
       if (epoch === historyEpoch) {
         initTask = undefined
@@ -330,7 +402,32 @@ const ensureSessionLoaded = (id: string): Promise<void> => {
   sessionLoads.set(id, load)
   load.promise = (async () => {
     try {
-      const stored = await db.loadSession(id)
+      let stored: Session | undefined
+      try {
+        stored = normalizeSession(await getSessionApi(id))
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          // 服务端已删除：列表与缓存同步移除，不让本地旧副本复活
+          if (epoch === historyEpoch) {
+            sessionLoads.delete(id)
+            sessionAccess.delete(id)
+            set((state) => ({
+              sessions: state.sessions.filter((session) => session.id !== id),
+              sessionCache: Object.fromEntries(
+                Object.entries(state.sessionCache).filter(([key]) => key !== id)
+              ),
+              activeId: state.activeId === id ? null : state.activeId,
+            }))
+            void db.deleteSession(id).catch(db.reportStorageError('delete stale session cache'))
+          }
+          return
+        }
+        stored = await db.loadSession(id)
+        if (!stored) {
+          throw error
+        }
+        db.reportStorageError('read server session, fallback to cache')(error)
+      }
       if (epoch !== historyEpoch || sessionLoads.get(id) !== load) {
         return
       }
@@ -338,15 +435,16 @@ const ensureSessionLoaded = (id: string): Promise<void> => {
       if (!summary) {
         return
       }
-      if (!stored) {
-        throw new Error(`Session ${id} is missing from local storage`)
-      }
       const settled = settleInterrupted(normalizeSession(stored))
       // 读取期间可能已在列表重命名，保留最新元数据，不能让旧读取覆盖它。
       const session = sameSummary(settled, summary) ? settled : { ...settled, ...summary }
       touchSession(id)
       set((state) => ({ sessionCache: { ...state.sessionCache, [id]: session } }))
-      if (session !== stored) {
+      // 只更新本地缓存；服务端读取是权威，不需要再写回
+      void db
+        .saveSession(session)
+        .catch(db.reportStorageError('save session cache after load'))
+      if (settled !== stored || session !== settled) {
         persist(id)
       }
       trimSessionCache()
@@ -402,6 +500,7 @@ export const replaceHistory = async (write: () => Promise<void>): Promise<number
     initTask = undefined
     sessionLoads.clear()
     await waitForIdle()
+    await waitForServerSaves()
     await db.clearStaging()
     let summaries: SessionSummary[]
     try {
@@ -462,16 +561,32 @@ export const renameSession = (id: string, title: string) => {
   if (controller) {
     titleRequests.delete(controller)
   }
+  const now = Date.now()
   if (getSession(id)) {
-    updateSession(id, (session) => ({ ...session, title }))
+    updateSession(id, (session) => ({ ...session, title, updatedAt: now }))
     persist(id)
   } else {
     set((state) => ({
       sessions: state.sessions.map((session) =>
-        session.id === id ? { ...session, title } : session
+        session.id === id ? { ...session, title, updatedAt: now } : session
       ),
     }))
-    void db.renameSession(id, title).catch(db.reportStorageError('rename session'))
+    void db.renameSession(id, title).catch(db.reportStorageError('rename session cache'))
+    // 未加载详情时先拉取完整会话，再用 PUT 写入服务端，避免只改本地摘要
+    void ensureSessionLoaded(id)
+      .then(() => {
+        if (!getSession(id)) {
+          return
+        }
+        updateSession(id, (session) => ({ ...session, title, updatedAt: Date.now() }))
+        persist(id)
+      })
+      .catch((error: unknown) => {
+        db.reportStorageError('rename session on server')(error)
+        set((state) => ({
+          sessionSaveErrors: { ...state.sessionSaveErrors, [id]: true },
+        }))
+      })
   }
 }
 
@@ -495,8 +610,17 @@ const removeSessionData = async (id: string): Promise<boolean> => {
     getStreamController(id)?.abort()
     // 等本会话的流收尾，避免删除之后又被收尾保存写回来。
     await waitForIdle(id)
+    await serverSaves.get(id)?.catch(() => {})
     if (epoch !== historyEpoch) {
       return false
+    }
+    try {
+      await deleteSessionApi(id)
+    } catch (error) {
+      // 服务端已不存在按删除成功处理；其余错误保留会话并提示重试
+      if (!(error instanceof ApiError && error.status === 404)) {
+        throw error
+      }
     }
     await db.deleteSession(id)
     if (epoch !== historyEpoch) {
@@ -537,11 +661,21 @@ const removeSessionData = async (id: string): Promise<boolean> => {
   }
 }
 
-export const stopReply = (sessionId: string) => getStreamController(sessionId)?.abort()
+export const stopReply = (sessionId: string) => {
+  const requestId = runIds.get(sessionId)
+  if (requestId) {
+    void stopChat(requestId)
+  }
+  getStreamController(sessionId)?.abort()
+}
 
 /** 退出登录、切换账号前停止所有生成，避免继续消耗上游 */
 export const stopAllReplies = () => {
-  for (const controller of Object.values(get().streaming)) {
+  for (const [sessionId, controller] of Object.entries(get().streaming)) {
+    const requestId = runIds.get(sessionId)
+    if (requestId) {
+      void stopChat(requestId)
+    }
     controller.abort()
   }
 }
@@ -781,7 +915,7 @@ const saveServerIds = (sessionId: string, serverIds: Map<string, string>) => {
  * 附件的服务端 id：已有直接用；正在上传的等待同一任务；否则读取本地原件补传。
  * 本地也没有原件（导入的文档附件只有元数据）时返回 null，该附件只展示、不进入请求。
  */
-const ensureServerId = async (apiKey: string, file: FileAttachment): Promise<string | null> => {
+const ensureServerId = async (file: FileAttachment): Promise<string | null> => {
   if (file.serverId) {
     return file.serverId
   }
@@ -793,7 +927,7 @@ const ensureServerId = async (apiKey: string, file: FileAttachment): Promise<str
   if (!blob) {
     return null
   }
-  return uploadAttachment(apiKey, file.id, blob, file.name, file.isImage)
+  return uploadAttachment(file.id, blob, file.name, file.isImage)
 }
 
 /** 用会话里的最新消息替换请求快照：重传前会重置附件的 serverId，快照必须跟着更新 */
@@ -823,7 +957,6 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   // 服务端判定 file_id 失效时会清掉会话里的 serverId，先用最新消息替换请求快照，
   // 否则快照里仍是旧 id，补传会直接复用它。
   request = refreshRequest(sessionId, request)
-  const apiKey = useSettings.getState().apiKey ?? ''
   const serverIds = new Map<string, string>()
   // 停止生成立即生效；上传本身不取消（输入框与其他消息可能共用同一任务），完成后照常写回 serverId
   const aborted = new Promise<never>((_, reject) => {
@@ -831,7 +964,7 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   })
   const uploads = Promise.allSettled(
     request.question.files.map(async (file) => {
-      const serverId = await ensureServerId(apiKey, file)
+      const serverId = await ensureServerId(file)
       if (serverId) {
         serverIds.set(file.id, serverId)
       }
@@ -859,7 +992,7 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   for (const file of pending.values()) {
     signal.throwIfAborted()
     try {
-      const serverId = await Promise.race([ensureServerId(apiKey, file), aborted])
+      const serverId = await Promise.race([ensureServerId(file), aborted])
       if (serverId) {
         serverIds.set(file.id, serverId)
         saveServerIds(sessionId, new Map([[file.id, serverId]]))
@@ -1002,9 +1135,11 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           latestReminder
         )
         const settings = useSettings.getState()
-        const events = streamMessage(
-          settings.apiKey ?? '',
-          {
+        const requestId = createId()
+        runIds.set(sessionId, requestId)
+        const events = streamChat({
+          requestId,
+          body: {
             model: initial.model ?? settings.model,
             system: settings.systemPromptEnabled ? settings.systemPrompt : SYSTEM_PROMPT,
             messages,
@@ -1013,8 +1148,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
             tools: serverTools(initial.search ?? false),
             ...(titleRequests.has(controller) ? { title: { enabled: true } } : {}),
           },
-          controller.signal
-        )
+          signal: controller.signal,
+        })
         const blockIndexes = new Map<number, number>()
         for await (const event of events) {
           receivedContent ||= event.type === 'content_block_start'
@@ -1088,13 +1223,16 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
   } finally {
     titleRequests.delete(controller)
     streamFlushes.delete(sessionId)
+    runIds.delete(sessionId)
     cancelAnimationFrame(frame)
     updateReply(sessionId, reply)
+    // 先把最终快照排进服务端保存队列，再移除 streaming；
+    // 删除会话的 waitForIdle 会因此能等到最后一次 persist。
+    persist(sessionId)
     set((state) => ({
       streaming: Object.fromEntries(
         Object.entries(state.streaming).filter(([id]) => id !== sessionId)
       ),
     }))
-    persist(sessionId)
   }
 }

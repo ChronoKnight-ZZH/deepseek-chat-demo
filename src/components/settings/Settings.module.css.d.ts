@@ -27,10 +27,6 @@ declare const styles: {
   readonly switch: string
   readonly switchOn: string
   readonly switchThumb: string
-  readonly apiKey: string
-  readonly apiKeySaved: string
-  readonly apiKeyInput: string
-  readonly apiKeyMask: string
   readonly divider: string
   readonly confirm: string
   readonly cellButton: string

@@ -171,13 +171,101 @@
 | 改密成功 | 清除本地会话，提示“密码已修改，请重新登录” |
 | 改密 503 `SESSION_WRITE_FAILED` | 提示“密码可能已修改但会话撤销失败”，要求用户退出后重新登录确认 |
 
-## 4. 聊天代理（下一阶段，占位）
+## 4. 聊天 / 文件 / 语音 BFF
 
-聊天代理与本地 IndexedDB 双写使用以下约定，后端未就绪前前端不切换：
+浏览器不再直连 DeepSeek，所有上游请求都经过同源 BFF；`UPSTREAM_API_KEY` 只存在服务端。
 
-- `POST /api/runs`：`{ sessionId, input, attachments, options }` → `{ runId }`
-- `GET /api/runs/:runId/events`：SSE，事件带 `id: <seq>`；断线用 `Last-Event-ID` 续传
-- `POST /api/runs/:runId/stop`：停止生成
-- 前端按 `seq` 去重，Redis Stream 保留窗口外返回 `409 RUN_EXPIRED`
-- 附件由服务端对象存储保存，前端只发送本地附件 ID/类型/元数据
-- 受保护请求统一携带 `Authorization: Bearer <token>`
+### 4.1 `POST /v1/chat/stream`
+
+请求头：
+
+```text
+Authorization: Bearer <token>
+Content-Type: application/json
+Accept: text/event-stream
+X-Request-Id: <8-64 位 [A-Za-z0-9_-]>
+```
+
+请求体为 Anthropic 兼容 Messages 请求（`model`、`messages`、`system`、`thinking`、
+`tools`、`safety_check`、`title` 等）。
+
+响应为 SSE：
+
+```text
+event: relay_meta
+data: {"requestId":"...","cursor":0,"resumed":false,"cached":false}
+
+id: 1
+event: message_start
+data: {...}
+
+id: 2
+event: content_block_delta
+data: {...}
+
+event: relay_end
+data: {"requestId":"...","status":"done","finishReason":"end_turn","code":null}
+```
+
+- 内容帧带单调递增 `id`；`relay_meta` / `relay_end` 不带 `id`。
+- 首帧之前失败返回普通 HTTP 状态码；已开始推流后失败用 `relay_end` 的 `code`。
+- 停止后 `relay_end.status = "error"`，`code = "ABORTED"`。
+
+### 4.2 `GET /v1/chat/stream?requestId=&cursor=`
+
+断线续推。也可以改用 `Last-Event-ID` 请求头。只读缓冲，不再打上游。
+
+### 4.3 `POST /v1/chat/stop`
+
+```json
+{ "requestId": "..." }
+```
+
+只允许停止当前用户自己的流；返回 `{ "ok": true, "stopped": true|false }`。
+
+### 4.4 `POST /v1/files` / `DELETE /v1/files/:fileId`
+
+- `POST`：multipart 原样转发到上游 Files API；服务端注入 Key 与
+  `anthropic-beta: files-api-2025-04-14`。
+- `DELETE`：删除上游文件。
+- 单文件上限 64MB。
+- 当前阶段只做透传，附件原件尚未落服务端磁盘。
+
+### 4.5 `POST /v1/tools/asr` / `POST /v1/tools/tts`
+
+- ASR：multipart 原样转发，上限 8MB。
+- TTS：JSON 请求，二进制音频流原样返回。
+- 两者都要求 Bearer Token，不再接受浏览器 API Key。
+
+### 4.6 错误映射
+
+| 场景 | BFF 返回 |
+| --- | --- |
+| 未登录 / Token 失效 | `401 TOKEN_*` |
+| 上游 401/403 | `502 UPSTREAM_REJECTED` |
+| 上游 429 | `429 UPSTREAM_RATE_LIMITED` |
+| 上游 5xx / 网络错误 | `502 UPSTREAM_ERROR` |
+| 上游超时 | `504 UPSTREAM_TIMEOUT` |
+| 请求体过大 | `413 PAYLOAD_TOO_LARGE` |
+
+### 4.7 会话持久化
+
+`chat_sessions` 表以 JSON 保存整条会话（消息、分支、版本、思考块、工具块、引用、
+错误信息），会话按 `user_id` 隔离：
+
+- `GET /v1/sessions`：摘要列表，按 `updated_at` 倒序
+- `GET /v1/sessions?full=1`：全部消息，供搜索/导出
+- `GET /v1/sessions/:id`：单条会话
+- `POST /v1/sessions` / `PUT /v1/sessions/:id`：upsert
+- `PATCH /v1/sessions/:id`：重命名
+- `DELETE /v1/sessions/:id` / `DELETE /v1/sessions`：软删除 / 清空
+
+前端以服务端为准，IndexedDB 只作为本地缓存。浏览器端不再提供历史导入，
+历史只能由云端 CLI 导入。
+
+### 4.8 下一阶段
+
+- 附件原件落盘与跨设备读取
+- 历史 ZIP 的云端 CLI 导入
+
+

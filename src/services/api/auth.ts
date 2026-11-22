@@ -1,6 +1,7 @@
 import { MAX_AUTH_PLAINTEXT_BYTES } from '../auth/crypto.js'
+import { API_CREDENTIALS } from '../env.js'
 
-/** 同源认证前缀；开发环境由 rspack devServer 代理到本地后端 */
+/** 认证前缀：开发同源 /auth（devServer 代理），生产 https://api.shunkai-dg.cn/auth */
 export const AUTH_BASE = __AUTH_BASE__.replace(/\/+$/, '')
 
 export type PublicKeyResponse = {
@@ -82,11 +83,7 @@ const readError = async (response: Response): Promise<AuthApiError> => {
   return new AuthApiError(code, message, response.status, retryAfter)
 }
 
-const authFetch = async <T>(
-  path: string,
-  init: RequestInit = {},
-  token?: string
-): Promise<T> => {
+const authFetch = async <T>(path: string, init: RequestInit = {}, token?: string): Promise<T> => {
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
   if (typeof init.body === 'string' && !headers.has('Content-Type')) {
@@ -100,17 +97,15 @@ const authFetch = async <T>(
     response = await fetch(`${AUTH_BASE}${path}`, {
       ...init,
       headers,
-      credentials: 'same-origin',
+      // 与 BFF 一致：分域部署时 include，需要后端回 Access-Control-Allow-Credentials
+      credentials: API_CREDENTIALS,
       cache: 'no-store',
     })
   } catch (error) {
     if (init.signal?.aborted) {
       throw error
     }
-    throw new AuthApiError(
-      'NETWORK_ERROR',
-      error instanceof Error ? error.message : String(error)
-    )
+    throw new AuthApiError('NETWORK_ERROR', error instanceof Error ? error.message : String(error))
   }
   if (!response.ok) {
     throw await readError(response)

@@ -22,7 +22,10 @@ const round = (value: number) => Math.round(value * 100) / 100
 const readSize = (svg: Element): { width: number; height: number } => {
   const viewBox = svg.getAttribute('viewBox')
   if (viewBox) {
-    const parts = viewBox.trim().split(/[\s,]+/).map(Number)
+    const parts = viewBox
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number)
     if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
       const [, , width, height] = parts
       if (width > 0 && height > 0) {

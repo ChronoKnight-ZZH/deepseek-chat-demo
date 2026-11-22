@@ -34,6 +34,7 @@
   ```
 
   `byteLength(username)` 是 username 的 UTF-8 字节数，不是字符数。
+
 - 改密 payload（UTF-8，长度前缀协议）：
 
   ```text
@@ -64,19 +65,22 @@
 
 稳定错误码：
 
-| code | HTTP | 含义 |
-| --- | --- | --- |
-| `INVALID_CREDENTIALS` | 401 | 账号或密码错误 |
-| `INVALID_INPUT` | 400 | 输入无效 |
-| `TOKEN_MISSING` | 401 | 缺少凭证 |
-| `TOKEN_INVALID` | 401 | 凭证无效 |
-| `TOKEN_EXPIRED` | 401 | 凭证已过期 |
-| `ACCOUNT_LOCKED` | 403 | 账号已被锁定 |
-| `TOO_MANY_ATTEMPTS` | 429 | 尝试过于频繁 |
-| `AUTH_BUSY` | 429 | 服务繁忙，请稍后重试 |
-| `SESSION_WRITE_FAILED` | 503 | 会话写入失败 |
-| `SESSION_STORE_UNAVAILABLE` | 503 | 会话存储不可用 |
-| `INTERNAL` | 500 | 服务器内部错误 |
+| code                        | HTTP | 含义                                  |
+| --------------------------- | ---- | ------------------------------------- |
+| `INVALID_CREDENTIALS`       | 401  | 账号或密码错误                        |
+| `INVALID_INPUT`             | 400  | 输入无效                              |
+| `TOKEN_MISSING`             | 401  | 缺少凭证                              |
+| `TOKEN_INVALID`             | 401  | 凭证无效                              |
+| `TOKEN_EXPIRED`             | 401  | 凭证已过期                            |
+| `ACCOUNT_LOCKED`            | 403  | 账号已被锁定                          |
+| `TOO_MANY_ATTEMPTS`         | 429  | 尝试过于频繁                          |
+| `AUTH_BUSY`                 | 429  | 服务繁忙，请稍后重试                  |
+| `SESSION_WRITE_FAILED`      | 503  | 会话写入失败                          |
+| `SESSION_STORE_UNAVAILABLE` | 503  | 会话存储不可用                        |
+| `FILE_TOKEN_INVALID`        | 403  | 文件票据非法、被篡改或已过期          |
+| `FILE_ACCESS_DENIED`        | 404  | 文件/会话越权或已删除（与不存在统一） |
+| `FILES_DISABLED`            | 503  | 服务端未启用原件存储                  |
+| `INTERNAL`                  | 500  | 服务器内部错误                        |
 
 ## 2. 接口
 
@@ -159,16 +163,16 @@
 
 ## 3. 前端处理矩阵
 
-| 状态 | 前端行为 |
-| --- | --- |
-| 启动 | 从 `sessionStorage` 恢复会话；`expiresAt` 已过期则视为未登录 |
-| 登录 401 | 统一提示“账号或密码错误” |
-| 登录 429 | 读取 `Retry-After` 或响应体 `retryAfter`，倒计时结束前禁用提交 |
-| 登录 403 `ACCOUNT_LOCKED` | 提示账号已锁定 |
-| 登录 503 / 网络错误 | 提示服务暂不可用，保留输入 |
-| 任意受保护请求 401 | 单飞处理，清除本地会话并切到登录页 |
-| 登出 | 尽力调用后端，本地始终清除会话 |
-| 改密成功 | 清除本地会话，提示“密码已修改，请重新登录” |
+| 状态                            | 前端行为                                                       |
+| ------------------------------- | -------------------------------------------------------------- |
+| 启动                            | 从 `sessionStorage` 恢复会话；`expiresAt` 已过期则视为未登录   |
+| 登录 401                        | 统一提示“账号或密码错误”                                       |
+| 登录 429                        | 读取 `Retry-After` 或响应体 `retryAfter`，倒计时结束前禁用提交 |
+| 登录 403 `ACCOUNT_LOCKED`       | 提示账号已锁定                                                 |
+| 登录 503 / 网络错误             | 提示服务暂不可用，保留输入                                     |
+| 任意受保护请求 401              | 单飞处理，清除本地会话并切到登录页                             |
+| 登出                            | 尽力调用后端，本地始终清除会话                                 |
+| 改密成功                        | 清除本地会话，提示“密码已修改，请重新登录”                     |
 | 改密 503 `SESSION_WRITE_FAILED` | 提示“密码可能已修改但会话撤销失败”，要求用户退出后重新登录确认 |
 
 ## 4. 聊天 / 文件 / 语音 BFF
@@ -229,26 +233,82 @@ data: {"requestId":"...","status":"done","finishReason":"end_turn","code":null}
   `anthropic-beta: files-api-2025-04-14`。
 - `DELETE`：删除上游文件。
 - 单文件上限 64MB。
-- 当前阶段只做透传，附件原件尚未落服务端磁盘。
+- 这是**对话上下文**所需的上游副本；跨设备可读的服务端归档见 §4.5。
 
-### 4.5 `POST /v1/tools/asr` / `POST /v1/tools/tts`
+### 4.5 附件原件归档
+
+`POST /v1/files/originals`
+
+- `Authorization: Bearer <token>`，请求体就是文件字节（不是 multipart）。
+- `X-File-Name` / `X-File-Mime` 为 `encodeURIComponent` 后的值；MIME 最终以文件头嗅探为准。
+- 成功 `201`：
+
+  ```json
+  {
+    "fileId": "uuid",
+    "id": "uuid",
+    "sha256": "64 位 hex",
+    "size": 12345,
+    "mime": "image/png",
+    "name": "图片.png",
+    "isImage": true
+  }
+  ```
+
+- 会话消息的 `files[]` 增加 `storageId`（即这里的 `fileId`），随会话 JSON 一起保存。
+- 单文件默认 64 MiB；超限 `413 PAYLOAD_TOO_LARGE`。
+
+`GET /v1/files/originals/:fileId/url?sessionId=`
+
+- 要求 Bearer；文件与会话必须属于当前用户，否则统一 `404 FILE_ACCESS_DENIED`。
+- 成功：
+
+  ```json
+  {
+    "urls": { "t": "ticket", "p": "ticket", "r": "ticket" },
+    "expiresAt": 1760000000000,
+    "mime": "image/png",
+    "name": "图片.png",
+    "isImage": true
+  }
+  ```
+
+- `p` = 图片内联、`r` = 下载、`t` = 预留缩略图（当前回退为原图）。
+- 票据默认 30 分钟，不写入会话 JSON；前端只在内存缓存，过期后重签一次。
+
+`GET /v1/files/content?file_id=&state=&ty=`
+
+- **不需要** `Authorization`：`<img src>` 无法携带 Bearer，`state` 票据就是能力凭据。
+- 服务端仍会回查文件归属与会话存活；删除会话后立即 `404`。
+- 图片内联返回原始 MIME + `inline`；其他文件统一 `application/octet-stream` +
+  `attachment`，并带 `nosniff` / `CSP: sandbox`。
+- 支持 `Range`（206）与 `ETag` / `If-None-Match`（304）。
+
+`DELETE /v1/files/originals/:fileId`
+
+- 仅软删除元数据；物理 blob 由后续 GC 任务回收。
+
+前端策略：图片优先读本地 IndexedDB 原件；本地缺失且消息带 `storageId` 时，
+用上述接口换短期地址显示/下载，避免浏览器保存任何上游 Key。
+
+### 4.6 `POST /v1/tools/asr` / `POST /v1/tools/tts`
 
 - ASR：multipart 原样转发，上限 8MB。
 - TTS：JSON 请求，二进制音频流原样返回。
 - 两者都要求 Bearer Token，不再接受浏览器 API Key。
 
-### 4.6 错误映射
+### 4.7 错误映射
 
-| 场景 | BFF 返回 |
-| --- | --- |
-| 未登录 / Token 失效 | `401 TOKEN_*` |
-| 上游 401/403 | `502 UPSTREAM_REJECTED` |
-| 上游 429 | `429 UPSTREAM_RATE_LIMITED` |
-| 上游 5xx / 网络错误 | `502 UPSTREAM_ERROR` |
-| 上游超时 | `504 UPSTREAM_TIMEOUT` |
-| 请求体过大 | `413 PAYLOAD_TOO_LARGE` |
+| 场景                | BFF 返回                    |
+| ------------------- | --------------------------- |
+| 未登录 / Token 失效 | `401 TOKEN_*`               |
+| 上游 401/403        | `502 UPSTREAM_REJECTED`     |
+| 上游 429            | `429 UPSTREAM_RATE_LIMITED` |
+| 上游 5xx / 网络错误 | `502 UPSTREAM_ERROR`        |
+| 上游超时            | `504 UPSTREAM_TIMEOUT`      |
+| 请求体过大          | `413 PAYLOAD_TOO_LARGE`     |
 
-### 4.7 会话持久化
+### 4.8 会话持久化
 
 `chat_sessions` 表以 JSON 保存整条会话（消息、分支、版本、思考块、工具块、引用、
 错误信息），会话按 `user_id` 隔离：
@@ -263,9 +323,7 @@ data: {"requestId":"...","status":"done","finishReason":"end_turn","code":null}
 前端以服务端为准，IndexedDB 只作为本地缓存。浏览器端不再提供历史导入，
 历史只能由云端 CLI 导入。
 
-### 4.8 下一阶段
+### 4.9 下一阶段
 
-- 附件原件落盘与跨设备读取
 - 历史 ZIP 的云端 CLI 导入
-
-
+- 服务端缩略图、物理 blob GC、病毒扫描

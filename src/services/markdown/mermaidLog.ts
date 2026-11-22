@@ -66,10 +66,7 @@ export const pushMermaidLog = (entry: Omit<MermaidLogEntry, 'id' | 'at' | 'repea
       !code
     ) {
       return {
-        entries: [
-          { ...first, at: record.at, repeat: first.repeat + 1 },
-          ...state.entries.slice(1),
-        ],
+        entries: [{ ...first, at: record.at, repeat: first.repeat + 1 }, ...state.entries.slice(1)],
       }
     }
     return { entries: [record, ...state.entries].slice(0, MAX_ENTRIES) }

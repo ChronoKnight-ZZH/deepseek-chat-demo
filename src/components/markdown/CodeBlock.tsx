@@ -29,7 +29,11 @@ import { showToast } from '../base/toastState.js'
 import { copyText } from '../../utils/clipboard.js'
 import { downloadCode } from '../../utils/html.js'
 import { openHtmlPreview } from '../htmlPreview/htmlPreviewState.js'
-import { hasMermaidError, openMermaidLog, useMermaidLog } from '../../services/markdown/mermaidLog.js'
+import {
+  hasMermaidError,
+  openMermaidLog,
+  useMermaidLog,
+} from '../../services/markdown/mermaidLog.js'
 import { MermaidDiagram } from './MermaidDiagram.js'
 import { useFloatingCodeBanner } from './useFloatingCodeBanner.js'
 import styles from './CodeBlock.module.css'

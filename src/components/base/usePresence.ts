@@ -20,10 +20,7 @@ export const usePresence = (open: boolean, duration = EXIT_DURATION) => {
     if (!mounted) {
       return
     }
-    const timer = window.setTimeout(
-      () => setMounted(false),
-      prefersReducedMotion() ? 0 : duration
-    )
+    const timer = window.setTimeout(() => setMounted(false), prefersReducedMotion() ? 0 : duration)
     return () => window.clearTimeout(timer)
   }, [open, mounted, duration])
 

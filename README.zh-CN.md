@@ -57,23 +57,31 @@ try_files {path} /index.html
 
 ## 数据
 
-设置仍保存在浏览器 localStorage。会话和消息通过 BFF 保存到 MySQL；IndexedDB 只作为本地缓存与附件原件存储。API Key 不再保存到浏览器，只存在于 BFF 服务端环境变量。
+设置仍保存在浏览器 localStorage。会话和消息通过 BFF 保存到 MySQL；附件原件同时归档到服务端磁盘，其他设备通过短期签名地址读取；IndexedDB 只作为本地缓存。API Key 不再保存到浏览器，只存在于 BFF 服务端环境变量。
 
 设置中的导出会从服务端会话与本地可用图片生成 ZIP。浏览器端不再提供历史导入，历史统一由服务器 CLI 导入；导出不包含设置或非图片附件原件。格式与保留范围见[历史导入导出](src/services/chat/history/README.md)。
 
-设置 → 数据管理 → 删除所有对话，会在确认后删除服务端全部会话并清空本地缓存，停止正在生成的回复并回到新对话。应用设置保留，已经通过 BFF 上传的文件不受影响。
+设置 → 数据管理 → 删除所有对话，会在确认后删除服务端全部会话并清空本地缓存，停止正在生成的回复并回到新对话。应用设置保留；已归档的原件仍保留在服务端，但因会话被删除，短期签名地址会立即失效。
 
 ## 开发
 
-| 命令          | 用途                |
-| ------------- | ------------------- |
-| `pnpm dev`    | 启动开发服务器      |
-| `pnpm build`  | 构建到 `dist/`      |
-| `pnpm type`   | TypeScript 类型检查 |
-| `pnpm lint`   | oxlint 检查         |
-| `pnpm format` | oxfmt 格式化        |
+| 命令              | 用途                                  |
+| ----------------- | ------------------------------------- |
+| `pnpm dev`        | 开发服务器（本地地址 + 接口代理）     |
+| `pnpm build`      | 生产构建到 `dist/`（chat./api. 域名） |
+| `pnpm build:prod` | 显式生产构建，等价于 `pnpm build`     |
+| `pnpm build:dev`  | 用本地地址打开发包，供内网联调        |
+| `pnpm type`       | TypeScript 类型检查                   |
+| `pnpm lint`       | oxlint 检查                           |
+| `pnpm format`     | oxfmt 格式化                          |
 
-[rspack.config.ts](rspack.config.ts) 默认 `__AUTH_BASE__ = /auth`、`__BFF_BASE__ = /v1`，均为同源路径。`createConfig({ authBase, bffBase, devServer })` 支持自定义；开发服务器把 `/auth`、`/v1`、`/api` 代理到 `http://127.0.0.1:3000`。
+环境地址集中在 [config/env.ts](config/env.ts)：开发环境前端 `http://localhost:8090`、后端
+`http://127.0.0.1:3000`，接口是同源相对路径 `/auth`、`/v1`，由 devServer 代理到本地后端；
+生产环境前端 `https://chat.shunkai-dg.cn`、后端 `https://api.shunkai-dg.cn`，接口直接指向
+api 子域名并按跨域携带凭证。域名、端口、代理目标都可以用 `APP_ENV`、`WEB_ORIGIN`、
+`API_ORIGIN`、`AUTH_BASE`、`BFF_BASE`、`DEV_API_TARGET` 等环境变量或 `.env.<APP_ENV>` 文件覆盖
+（见 [.env.example](.env.example)），构建时会打印实际生效的地址。详见
+[docs/环境与部署.md](docs/环境与部署.md)。
 
 聊天默认使用 `deepseek-flash`，通过 Anthropic 兼容的 Messages / Files API 通信；语音使用 ASR / TTS 接口。请求使用搜索、链接阅读、标题和 `latest_reminder` 等扩展，接入服务需支持相应能力。附件实际支持的格式以服务端校验为准。
 

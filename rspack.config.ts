@@ -3,8 +3,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from '@rspack/cli'
 import { rspack, type Configuration } from '@rspack/core'
+import { describeEnvConfig, resolveEnvConfig, type EnvConfig } from './config/env.js'
 
-const dev = process.env.NODE_ENV !== 'production'
+/** 当前构建使用的运行环境：开发走本地地址，生产走 chat./api. 域名 */
+const envConfig = resolveEnvConfig()
 const targets = ['chrome >= 105', 'edge >= 105', 'safari >= 16', 'firefox >= 110']
 const root = path.dirname(fileURLToPath(import.meta.url))
 const { version } = JSON.parse(
@@ -17,105 +19,120 @@ const cssLoader = {
 }
 
 type ConfigOptions = {
-  /** 公开 API 的地址，注入为 __API_ORIGIN__ */
-  apiOrigin?: string
-  /** 认证接口前缀，同源部署默认 /auth；注入为 __AUTH_BASE__ */
-  authBase?: string
-  /** BFF 接口前缀，同源部署默认 /v1；注入为 __BFF_BASE__ */
-  bffBase?: string
+  /** 覆盖 config/env.ts 解析出来的运行环境（测试或特殊部署用） */
+  env?: Partial<EnvConfig>
   /** 部署目录，如 '/app/'；用于在认不出的地址下兜底解析资源，须以 / 开头和结尾 */
   basePath?: string
-  /** 开发服务器配置，支持本地接口代理 */
+  /** 开发服务器额外配置，可与本地接口代理合并 */
   devServer?: Configuration['devServer']
 }
 
-/** 创建构建配置，支持自定义 API 地址和开发服务器选项 */
-export const createConfig = ({
-  apiOrigin = 'https://api.deepseek.com',
-  authBase = '/auth',
-  bffBase = '/v1',
-  basePath = '/',
-  devServer,
-}: ConfigOptions = {}): Configuration => ({
-  mode: dev ? 'development' : 'production',
-  entry: './src/main.tsx',
-  output: {
-    path: path.resolve(root, 'dist'),
-    // 运行时按当前脚本地址推导资源路径，file:// 下异步 chunk、字体都按相对位置加载
-    publicPath: 'auto',
-    filename: 'static/js/[name].[contenthash:8].js',
-    chunkFilename: 'static/js/async/[name].[contenthash:8].js',
-    cssFilename: 'static/css/[name].[contenthash:8].css',
-    cssChunkFilename: 'static/css/async/[name].[contenthash:8].css',
-    assetModuleFilename: 'static/media/[name].[contenthash:8][ext]',
-    clean: true,
-  },
-  devtool: dev ? 'cheap-module-source-map' : false,
-  // 开发模式预编译异步模块，保持首次加载代码高亮和公式时的页面状态
-  lazyCompilation: false,
-  resolve: {
-    extensions: ['.tsx', '.ts', '.js'],
-    // 将 .js 导入路径解析到同名 .ts、.tsx 或 .js 文件
-    extensionAlias: { '.js': ['.ts', '.tsx', '.js'] },
-  },
-  module: {
-    // CSS Modules 使用默认导出：`import styles from './x.module.css'`
-    parser: { 'css/module': { namedExports: false } },
-    generator: { 'css/module': { localIdentName: '[local]-[hash:6]' } },
-    rules: [
-      { test: /\.module\.css$/, type: 'css/module', use: [cssLoader] },
-      { test: /\.css$/, exclude: /\.module\.css$/, type: 'css', use: [cssLoader] },
-      {
-        test: /\.(j|t)sx?$/,
-        exclude: /[\\/]node_modules[\\/]/,
-        loader: 'builtin:swc-loader',
-        options: {
-          jsc: {
-            parser: { syntax: 'typescript', tsx: true },
-            transform: { react: { runtime: 'automatic', development: dev } },
-            externalHelpers: true,
+/** 创建构建配置：按 APP_ENV / .env 注入各环境地址与开发服务器代理 */
+export const createConfig = ({ env, basePath, devServer }: ConfigOptions = {}): Configuration => {
+  const cfg: EnvConfig = { ...envConfig, ...env }
+  cfg.basePath = basePath ?? cfg.basePath
+  const dev = cfg.appEnv !== 'production'
+
+  return {
+    mode: dev ? 'development' : 'production',
+    entry: './src/main.tsx',
+    output: {
+      path: path.resolve(root, 'dist'),
+      // 运行时按当前脚本地址推导资源路径，file:// 下异步 chunk、字体都按相对位置加载
+      publicPath: 'auto',
+      filename: 'static/js/[name].[contenthash:8].js',
+      chunkFilename: 'static/js/async/[name].[contenthash:8].js',
+      cssFilename: 'static/css/[name].[contenthash:8].css',
+      cssChunkFilename: 'static/css/async/[name].[contenthash:8].css',
+      assetModuleFilename: 'static/media/[name].[contenthash:8][ext]',
+      clean: true,
+    },
+    devtool: dev ? 'cheap-module-source-map' : false,
+    // 开发模式预编译异步模块，保持首次加载代码高亮和公式时的页面状态
+    lazyCompilation: false,
+    resolve: {
+      extensions: ['.tsx', '.ts', '.js'],
+      // 将 .js 导入路径解析到同名 .ts、.tsx 或 .js 文件
+      extensionAlias: { '.js': ['.ts', '.tsx', '.js'] },
+    },
+    module: {
+      // CSS Modules 使用默认导出：`import styles from './x.module.css'`
+      parser: { 'css/module': { namedExports: false } },
+      generator: { 'css/module': { localIdentName: '[local]-[hash:6]' } },
+      rules: [
+        { test: /\.module\.css$/, type: 'css/module', use: [cssLoader] },
+        { test: /\.css$/, exclude: /\.module\.css$/, type: 'css', use: [cssLoader] },
+        {
+          test: /\.(j|t)sx?$/,
+          exclude: /[\\/]node_modules[\\/]/,
+          loader: 'builtin:swc-loader',
+          options: {
+            jsc: {
+              parser: { syntax: 'typescript', tsx: true },
+              transform: { react: { runtime: 'automatic', development: dev } },
+              externalHelpers: true,
+            },
+            env: { targets },
           },
-          env: { targets },
+          type: 'javascript/auto',
         },
-        type: 'javascript/auto',
-      },
-      { test: /\.(woff2?|ttf)$/, type: 'asset/resource' },
+        { test: /\.(woff2?|ttf)$/, type: 'asset/resource' },
+      ],
+    },
+    plugins: [
+      // 经典 defer 脚本支持 file:// 页面的资源加载
+      new rspack.HtmlRspackPlugin({
+        template: './src/index.html',
+        scriptLoading: 'defer',
+        meta: { 'application-version': version },
+        // 内联脚本据此兜底推断应用根目录（见 src/index.html）
+        templateParameters: { appBasePath: cfg.basePath },
+      }),
+      new rspack.DefinePlugin({
+        __APP_ENV__: JSON.stringify(cfg.appEnv),
+        __WEB_ORIGIN__: JSON.stringify(cfg.webOrigin),
+        __API_ORIGIN__: JSON.stringify(cfg.apiOrigin),
+        __AUTH_BASE__: JSON.stringify(cfg.authBase),
+        __BFF_BASE__: JSON.stringify(cfg.bffBase),
+        __API_CREDENTIALS__: JSON.stringify(cfg.credentials),
+      }),
+      new rspack.CopyRspackPlugin({
+        patterns: [{ from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' }],
+      }),
     ],
-  },
-  plugins: [
-    // 经典 defer 脚本支持 file:// 页面的资源加载
-    new rspack.HtmlRspackPlugin({
-      template: './src/index.html',
-      scriptLoading: 'defer',
-      meta: { 'application-version': version },
-      // 内联脚本据此兜底推断应用根目录（见 src/index.html）
-      templateParameters: { appBasePath: basePath },
-    }),
-    new rspack.DefinePlugin({
-      __API_ORIGIN__: JSON.stringify(apiOrigin),
-      __AUTH_BASE__: JSON.stringify(authBase),
-      __BFF_BASE__: JSON.stringify(bffBase),
-    }),
-    new rspack.CopyRspackPlugin({
-      patterns: [{ from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' }],
-    }),
-  ],
-  performance: { hints: false },
-  // 会话地址是真实路径（/chat/<id>），刷新和直链都要回退到 index.html
-  devServer: {
-    port: 8090,
-    historyApiFallback: true,
-    // 本地后端默认监听 3000；生产环境由同源 Nginx 反代
-    proxy: [
-      {
-        context: ['/auth', '/v1', '/api'],
-        target: 'http://127.0.0.1:3000',
-        changeOrigin: true,
-      },
-    ],
-    ...devServer,
-  },
-})
+    performance: { hints: false },
+    // 会话地址是真实路径（/chat/<id>），刷新和直链都要回退到 index.html
+    devServer: {
+      port: cfg.devPort,
+      historyApiFallback: true,
+      // 开发环境把同源接口前缀代理到本地后端；生产环境由 Nginx 反代 api 子域名
+      proxy: dev
+        ? [
+            {
+              context: proxyContexts(cfg),
+              target: cfg.devProxyTarget,
+              changeOrigin: true,
+            },
+          ]
+        : undefined,
+      ...devServer,
+    },
+  }
+}
+
+/** 只有相对路径前缀需要代理；生产配置是完整域名，devServer 用不到 */
+const proxyContexts = (cfg: EnvConfig): string[] => {
+  const contexts = [cfg.authBase, cfg.bffBase].filter((base) => base.startsWith('/'))
+  if (contexts.length === 0) {
+    // .env.development 把接口写成完整域名时，仍保留默认前缀方便本地直连后端调试
+    return ['/auth', '/v1', '/api']
+  }
+  return [...new Set([...contexts, '/api'])]
+}
 
 // eslint-disable-next-line import/no-default-export
 export default defineConfig(createConfig())
+
+// 打印本次构建使用的地址，避免部署到错误环境却看不出来
+// eslint-disable-next-line no-console
+console.info(`[env] ${describeEnvConfig(envConfig)}`)

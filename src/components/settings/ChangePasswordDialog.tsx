@@ -73,18 +73,18 @@ export const ChangePasswordDialog = ({ onClose }: { onClose: () => void }) => {
           <Button variant="outlined" size="m" disabled={submitting} onClick={close}>
             {t('cancel')}
           </Button>
-          <Button
-            type="submit"
-            form={formId}
-            size="m"
-            disabled={submitting}
-          >
+          <Button type="submit" form={formId} size="m" disabled={submitting}>
             {t(submitting ? 'loginChangingPassword' : 'loginChangePassword')}
           </Button>
         </div>
       }
     >
-      <form id={formId} className={styles.changePasswordForm} onSubmit={(event) => void submit(event)} noValidate>
+      <form
+        id={formId}
+        className={styles.changePasswordForm}
+        onSubmit={(event) => void submit(event)}
+        noValidate
+      >
         <label className={styles.passwordField}>
           <span>{t('loginOldPassword')}</span>
           <input

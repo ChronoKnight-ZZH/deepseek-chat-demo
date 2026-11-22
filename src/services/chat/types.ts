@@ -17,6 +17,11 @@ import type {
 export type FileAttachment = {
   id: string
   serverId: string | null
+  /**
+   * 服务端原件 id（里程碑 3）。上传成功后写入会话 JSON；其他设备没有本地
+   * IndexedDB 原件时，用它向 BFF 换取短期票据读取。旧数据/导入数据为 null。
+   */
+  storageId: string | null
   name: string
   size: number
   /** 附件类别；导入时沿用归档的 is_image，不由 MIME 识别结果决定。 */

@@ -252,7 +252,6 @@ export const en = {
     'The password may have changed, but session revocation failed. Please sign in again.',
   authServiceUnavailable: 'Authentication is temporarily unavailable. Try again later.',
   authInputTooLong: 'The username or password is too long',
-  authWebCryptoUnavailable:
-    'This browser cannot perform secure sign-in. Update it or use HTTPS.',
+  authWebCryptoUnavailable: 'This browser cannot perform secure sign-in. Update it or use HTTPS.',
   logout: 'Sign out',
 } satisfies Record<keyof typeof zh, string>

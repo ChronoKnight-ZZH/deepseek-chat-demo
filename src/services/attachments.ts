@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { LinkedMessage, TranslationMessage } from '../i18n/index.js'
 import { uploadFile } from './api/client.js'
+import { uploadOriginal } from './api/fileStorage.js'
 import { classifyApiError, getUploadErrorInfo, isRetryableApiError } from './api/errors.js'
 import type { FilePurpose } from './api/types.js'
 import { ACCEPT_FILE_EXTS } from './uploadExts.js'
@@ -116,22 +117,32 @@ const next = () => {
   }
 }
 
+type UploadResult = { serverId: string; storageId: string | null }
+
 /** 排队上传，最多同时上传 MAX_CONCURRENT 个；排队期间中止的任务不会发出请求 */
 const enqueueUpload = (
   file: Blob,
   name: string,
   isImage: boolean,
+  mime: string,
   signal: AbortSignal
 ) =>
-  new Promise<string>((resolve, reject) => {
+  new Promise<UploadResult>((resolve, reject) => {
     queue.push(async () => {
       if (signal.aborted) {
         reject(signal.reason)
         return
       }
       try {
-        const body = file instanceof File ? file : new File([file], name, { type: file.type })
-        resolve((await uploadFile(body, getUploadPurpose(name, isImage), signal)).id)
+        const body =
+          file instanceof File ? file : new File([file], name, { type: file.type || mime })
+        // 上游 Files API 是对话上下文所必需；服务端原件是归档/跨设备读取所必需。
+        // 原件上传失败不阻塞对话，附件仍可在本机 IndexedDB 中显示。
+        const [upstream, stored] = await Promise.all([
+          uploadFile(body, getUploadPurpose(name, isImage), signal),
+          uploadOriginal(body, name, mime, signal).catch(() => null),
+        ])
+        resolve({ serverId: upstream.id, storageId: stored?.id ?? null })
       } catch (error) {
         reject(error)
       }
@@ -146,7 +157,8 @@ const enqueueUpload = (
  */
 export type UploadTask =
   | { status: 'uploading' }
-  | { status: 'done'; serverId: string }
+  /** serverId：上游 Files API；storageId：服务端原件（可能因归档失败为 null） */
+  | { status: 'done'; serverId: string; storageId: string | null }
   | { status: 'error'; error: TranslationMessage; retryable: boolean }
 
 type UploadState = { tasks: Record<string, UploadTask> }
@@ -160,25 +172,26 @@ const setTask = (id: string, task: UploadTask | null) =>
       : Object.fromEntries(Object.entries(state.tasks).filter(([key]) => key !== id)),
   }))
 
-const pending = new Map<string, { promise: Promise<string>; controller: AbortController }>()
+const pending = new Map<string, { promise: Promise<UploadResult>; controller: AbortController }>()
 
-/** 开始（或复用进行中的）上传，返回服务端 file_id；失败时任务记为 error 并抛出原错误 */
+/** 开始（或复用进行中的）上传：返回上游 file_id 与服务端原件 id；失败时任务记为 error 并抛出原错误 */
 export const uploadAttachment = (
   id: string,
   blob: Blob,
   name: string,
   isImage: boolean
-): Promise<string> => {
+): Promise<UploadResult> => {
   const current = pending.get(id)
   if (current) {
     return current.promise
   }
   const controller = new AbortController()
+  const mime = blob.type || resolveMimeTypeByName(name)
   setTask(id, { status: 'uploading' })
-  const promise = enqueueUpload(blob, name, isImage, controller.signal)
-    .then((serverId) => {
-      setTask(id, { status: 'done', serverId })
-      return serverId
+  const promise = enqueueUpload(blob, name, isImage, mime, controller.signal)
+    .then((result) => {
+      setTask(id, { status: 'done', ...result })
+      return result
     })
     .catch((error: unknown) => {
       if (controller.signal.aborted) {
@@ -208,6 +221,13 @@ export const cancelUpload = (id: string) => {
   setTask(id, null)
 }
 
+/** 补档：只把本地原件送到服务端，不触发上游 Files API 上传 */
+export const archiveOriginal = async (blob: Blob, name: string): Promise<string> => {
+  const mime = blob.type || resolveMimeTypeByName(name)
+  const stored = await uploadOriginal(blob, name, mime)
+  return stored.id
+}
+
 /** 各扩展名对应的 MIME：部分系统（如 Windows）给不出 file.type，按扩展名补齐 */
 const MIME_BY_EXT: Record<string, string> = {
   png: 'image/png',
@@ -219,6 +239,9 @@ const MIME_BY_EXT: Record<string, string> = {
 
 /** 取文件的 MIME：优先用浏览器给出的类型，缺失时按扩展名推断 */
 export const resolveMimeType = (file: File) => file.type || MIME_BY_EXT[getFileExt(file.name)] || ''
+
+/** 只有文件名时按扩展名推断 MIME（用于 Blob 补传） */
+const resolveMimeTypeByName = (name: string) => MIME_BY_EXT[getFileExt(name)] || ''
 
 export const isImage = (mimeType: string) => mimeType.startsWith('image/')
 

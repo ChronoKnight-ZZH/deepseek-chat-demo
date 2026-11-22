@@ -9,7 +9,13 @@ import {
 } from '../api/sessions.js'
 import type { CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
-import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
+import {
+  archiveOriginal,
+  cancelUpload,
+  describeUploadError,
+  uploadAttachment,
+  useUploads,
+} from '../attachments.js'
 import { useSettings } from '../settings.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
@@ -73,11 +79,13 @@ const saveSessionToServer = (session: Session): Promise<void> => {
   const previous = serverSaves.get(session.id) ?? Promise.resolve()
   const next = previous.catch(() => {}).then(() => saveSessionApi(session))
   serverSaves.set(session.id, next)
-  void next.finally(() => {
-    if (serverSaves.get(session.id) === next) {
-      serverSaves.delete(session.id)
-    }
-  }).catch(() => {})
+  void next
+    .finally(() => {
+      if (serverSaves.get(session.id) === next) {
+        serverSaves.delete(session.id)
+      }
+    })
+    .catch(() => {})
   return next
 }
 
@@ -441,9 +449,7 @@ const ensureSessionLoaded = (id: string): Promise<void> => {
       touchSession(id)
       set((state) => ({ sessionCache: { ...state.sessionCache, [id]: session } }))
       // 只更新本地缓存；服务端读取是权威，不需要再写回
-      void db
-        .saveSession(session)
-        .catch(db.reportStorageError('save session cache after load'))
+      void db.saveSession(session).catch(db.reportStorageError('save session cache after load'))
       if (settled !== stored || session !== settled) {
         persist(id)
       }
@@ -727,9 +733,10 @@ export const sendMessage = (targetSessionId: string | null) => {
     id: createId(),
     role: 'user',
     content: text,
-    files: files.map(({ id, serverId, name, size, isImage, mimeType }) => ({
+    files: files.map(({ id, serverId, storageId, name, size, isImage, mimeType }) => ({
       id,
       serverId,
+      storageId,
       name,
       size,
       isImage,
@@ -890,20 +897,81 @@ export const retryUpload = (sessionId: string, messageId: string) => {
 
 type Request = { history: Message[]; question: UserMessage; prefix?: AssistantMessage }
 
-/** 把补传得到的 serverId 写回会话里所有引用同一附件的消息（编辑、重新生成会共用附件） */
-const saveServerIds = (sessionId: string, serverIds: Map<string, string>) => {
-  if (serverIds.size === 0) {
+/** 把补档得到的 storageId 写回会话里所有引用同一附件的消息 */
+const saveStorageIds = (sessionId: string, storageIds: Map<string, string>) => {
+  if (storageIds.size === 0) {
     return
   }
   updateSession(sessionId, (session) => ({
     ...session,
     messages: session.messages.map((message) =>
-      message.role === 'user' && message.files.some((file) => serverIds.has(file.id))
+      message.role === 'user' && message.files.some((file) => storageIds.has(file.id))
         ? {
             ...message,
             files: message.files.map((file) =>
-              serverIds.has(file.id) ? { ...file, serverId: serverIds.get(file.id) ?? null } : file
+              storageIds.has(file.id)
+                ? { ...file, storageId: storageIds.get(file.id) ?? file.storageId }
+                : file
             ),
+          }
+        : message
+    ),
+  }))
+  persist(sessionId)
+}
+
+/**
+ * 历史附件补档：旧版本/导入的数据没有 storageId，本地仍有原件时把原件送到 BFF。
+ * 只影响跨设备读取，不阻塞对话；失败静默，下次发送时再试。
+ */
+const archiveOriginals = async (sessionId: string, files: FileAttachment[]) => {
+  const epoch = historyEpoch
+  const seen = new Set<string>()
+  const storageIds = new Map<string, string>()
+  for (const file of files) {
+    if (file.storageId || seen.has(file.id)) {
+      continue
+    }
+    seen.add(file.id)
+    const blob = await db.loadFile(file.id)
+    if (!blob) {
+      continue
+    }
+    try {
+      storageIds.set(file.id, await archiveOriginal(blob, file.name))
+    } catch {
+      // 服务端文件能力关闭或网络异常：保留本地原件即可
+    }
+  }
+  if (epoch === historyEpoch) {
+    saveStorageIds(sessionId, storageIds)
+  }
+}
+
+/** 把上传/补传得到的 serverId 与 storageId 写回所有引用同一附件的消息（编辑、重新生成会共用附件） */
+const saveUploadResults = (
+  sessionId: string,
+  results: Map<string, { serverId: string; storageId: string | null }>
+) => {
+  if (results.size === 0) {
+    return
+  }
+  updateSession(sessionId, (session) => ({
+    ...session,
+    messages: session.messages.map((message) =>
+      message.role === 'user' && message.files.some((file) => results.has(file.id))
+        ? {
+            ...message,
+            files: message.files.map((file) => {
+              const result = results.get(file.id)
+              return result
+                ? {
+                    ...file,
+                    serverId: result.serverId,
+                    storageId: result.storageId ?? file.storageId,
+                  }
+                : file
+            }),
           }
         : message
     ),
@@ -915,13 +983,15 @@ const saveServerIds = (sessionId: string, serverIds: Map<string, string>) => {
  * 附件的服务端 id：已有直接用；正在上传的等待同一任务；否则读取本地原件补传。
  * 本地也没有原件（导入的文档附件只有元数据）时返回 null，该附件只展示、不进入请求。
  */
-const ensureServerId = async (file: FileAttachment): Promise<string | null> => {
+const ensureUpload = async (
+  file: FileAttachment
+): Promise<{ serverId: string; storageId: string | null } | null> => {
   if (file.serverId) {
-    return file.serverId
+    return { serverId: file.serverId, storageId: file.storageId }
   }
   const task = useUploads.getState().tasks[file.id]
   if (task?.status === 'done') {
-    return task.serverId
+    return task
   }
   const blob = await db.loadFile(file.id)
   if (!blob) {
@@ -957,22 +1027,22 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   // 服务端判定 file_id 失效时会清掉会话里的 serverId，先用最新消息替换请求快照，
   // 否则快照里仍是旧 id，补传会直接复用它。
   request = refreshRequest(sessionId, request)
-  const serverIds = new Map<string, string>()
+  const uploaded = new Map<string, { serverId: string; storageId: string | null }>()
   // 停止生成立即生效；上传本身不取消（输入框与其他消息可能共用同一任务），完成后照常写回 serverId
   const aborted = new Promise<never>((_, reject) => {
     signal.addEventListener('abort', () => reject(signal.reason), { once: true })
   })
   const uploads = Promise.allSettled(
     request.question.files.map(async (file) => {
-      const serverId = await ensureServerId(file)
-      if (serverId) {
-        serverIds.set(file.id, serverId)
+      const result = await ensureUpload(file)
+      if (result) {
+        uploaded.set(file.id, result)
       }
     })
   )
   void uploads.then(() => {
     if (epoch === historyEpoch) {
-      saveServerIds(sessionId, serverIds)
+      saveUploadResults(sessionId, uploaded)
     }
   })
   const results = await Promise.race([uploads, aborted])
@@ -984,7 +1054,7 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   const pending = new Map<string, FileAttachment>()
   for (const [user] of getContextRounds(request.history).toReversed()) {
     for (const file of user.files) {
-      if (!file.serverId && !serverIds.has(file.id) && !pending.has(file.id)) {
+      if (!file.serverId && !uploaded.has(file.id) && !pending.has(file.id)) {
         pending.set(file.id, file)
       }
     }
@@ -992,10 +1062,10 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   for (const file of pending.values()) {
     signal.throwIfAborted()
     try {
-      const serverId = await Promise.race([ensureServerId(file), aborted])
-      if (serverId) {
-        serverIds.set(file.id, serverId)
-        saveServerIds(sessionId, new Map([[file.id, serverId]]))
+      const result = await Promise.race([ensureUpload(file), aborted])
+      if (result) {
+        uploaded.set(file.id, result)
+        saveUploadResults(sessionId, new Map([[file.id, result]]))
       }
     } catch {
       signal.throwIfAborted()
@@ -1006,11 +1076,17 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   const session = getSession(sessionId)
   const resolve = <T extends Message>(message: T): T =>
     (session?.messages.find((m) => m.id === message.id) as T | undefined) ?? message
-  return {
+  const resolved = {
     history: request.history.map(resolve),
     question: resolve(request.question),
     prefix: request.prefix,
   }
+  // 服务端原件补档与对话解耦：旧数据首次参与请求时顺带把本地原件送到 BFF
+  void archiveOriginals(sessionId, [
+    ...resolved.question.files,
+    ...resolved.history.flatMap((message) => (message.role === 'user' ? message.files : [])),
+  ])
+  return resolved
 }
 
 /** 本次请求实际会用到的服务端 file_id */
@@ -1069,7 +1145,7 @@ const reuploadInvalidatedFiles = (sessionId: string, request: Request, error: un
     return false
   }
   updateSession(sessionId, (current) => ({ ...current, messages }))
-  // 上传任务里可能还留着同一个失效的 serverId，清掉后 ensureServerId 才会重新上传
+  // 上传任务里可能还留着同一个失效的 serverId，清掉后 ensureUpload 才会重新上传
   localIds.forEach(cancelUpload)
   persist(sessionId)
   return true

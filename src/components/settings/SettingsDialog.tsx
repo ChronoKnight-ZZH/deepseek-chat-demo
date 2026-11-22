@@ -8,11 +8,7 @@ import {
   IconLightOutline16,
   IconSettingsOutline16,
 } from '../base/icons.js'
-import {
-  BackupError,
-  clearHistory,
-  exportHistory,
-} from '../../services/chat/backup.js'
+import { BackupError, clearHistory, exportHistory } from '../../services/chat/backup.js'
 import { logout, useAuth } from '../../services/auth.js'
 import { stopAllReplies, useChatStore } from '../../services/chat/store.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'

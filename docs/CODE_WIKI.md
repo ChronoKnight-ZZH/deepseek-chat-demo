@@ -4,7 +4,8 @@
 
 - 项目名：`chat-demo`，版本 `0.1.1`，协议 MIT
 - 技术栈：React 18 + TypeScript（strict）+ Rspack 2 + Zustand 4
-- 默认入口 API：`https://api.deepseek.com`（可在构建时通过 `createConfig({ apiOrigin })` 覆盖）
+- 运行环境地址：开发 `http://localhost:8090` + 本地后端 `http://127.0.0.1:3000`；生产前端
+  `https://chat.shunkai-dg.cn`、后端 `https://api.shunkai-dg.cn`（见 `config/env.ts`、`.env.example`）
 
 ---
 
@@ -137,11 +138,13 @@ ensureKatex()      // 预加载 KaTeX（异步 chunk 就绪后再渲染公式）
 setupTheme()       // 首屏渲染前同步一次主题
 createRoot(...).render(<App />)
 ```
+
 先初始化主题再挂载，避免首屏闪烁；引入 `theme.css` / `global.css` 全局样式。
 
 ### 4.3 `src/app/App.tsx`（根组件）
 
 职责：
+
 1. **登录态分流**：未登录渲染 `<LoginPage/>`；已登录进入主布局。
 2. **布局装配**：桌面端 `<DesktopSider>` + `<main>`；移动端根据宽度在 `<PushSider>`（推开式）与 `<MobileSider>`（抽屉）间切换；主区依次渲染 `SessionView` / `Welcome` / 加载态 / 保存失败提示条。
 3. **全局浮层**：统一挂载 `<SettingsDialog>`、`<MessageSearch>`、`<MermaidLogDialog>`、`<ImageViewer>`、`<Toast>`、`<SearchPanel>`、`<HtmlPreviewPanel>`。
@@ -164,6 +167,7 @@ createRoot(...).render(<App />)
 ### 4.5 `src/app/viewport.ts`
 
 移动端布局基础设施：
+
 - `useIsMobile()`：窄于 768px 判定为移动端（`useSyncExternalStore` 订阅媒体查询）。
 - `usePushSider()`：宽于 610px 时侧边栏用推开式布局，否则抽屉浮层。
 - `usePreventPageScroll(enabled)`：阻止移动端整页触摸滚动，保留内部可滚动区域与双指缩放。
@@ -181,12 +185,12 @@ createRoot(...).render(<App />)
 
 全部使用 **Zustand**。store 之间通过 `getState()` / `setState()` 直接互调（不引入中间件），组件用 selector 订阅。
 
-| Store | 文件 | 持久化 | 核心职责 |
-|---|---|---|---|
-| `useChatStore` | `services/chat/store.ts` | IndexedDB | 会话领域全部状态（列表、缓存、当前会话、流式控制器、错误标志） |
-| `useSettings` | `services/settings.ts` | localStorage | API Key、语言、主题、位置、音色、模型、思考 / 搜索开关、侧边栏收起、系统提示词 |
-| `useAuth` | `services/auth.ts` | localStorage | 登录用户（account / method / loggedAt），当前仅记录来源不做真实鉴权 |
-| `useUploads` | `services/attachments.ts` | 内存 | 附件上传任务表（按本地附件 id 登记，状态 uploading/done/error） |
+| Store          | 文件                      | 持久化       | 核心职责                                                                       |
+| -------------- | ------------------------- | ------------ | ------------------------------------------------------------------------------ |
+| `useChatStore` | `services/chat/store.ts`  | IndexedDB    | 会话领域全部状态（列表、缓存、当前会话、流式控制器、错误标志）                 |
+| `useSettings`  | `services/settings.ts`    | localStorage | API Key、语言、主题、位置、音色、模型、思考 / 搜索开关、侧边栏收起、系统提示词 |
+| `useAuth`      | `services/auth.ts`        | localStorage | 登录用户（account / method / loggedAt），当前仅记录来源不做真实鉴权            |
+| `useUploads`   | `services/attachments.ts` | 内存         | 附件上传任务表（按本地附件 id 登记，状态 uploading/done/error）                |
 
 此外各组件目录下的 `*State.ts` 是**轻量外部 store**（同样基于 `useSyncExternalStore` 或事件订阅），用于驱动无需进入领域 store 的 UI 浮层：
 
@@ -205,7 +209,9 @@ createRoot(...).render(<App />)
 ### 6.1 `services/api/` — API 协议与请求
 
 #### `types.ts`
+
 Messages API（Anthropic 兼容格式）协议类型，只声明应用用到的子集。关键类型：
+
 - `ChatModel = 'deepseek-flash' | 'deepseek-v4-pro'`
 - **请求**：`CreateMessageRequest`（model / system / messages / thinking / tools / safety_check / title?）；`MessageParam` 支持 `latest_reminder` / `user` / `assistant` 三种角色；工具声明 `deepseek_web_search` 与 `deepseek_read_url`。
 - **响应内容块**：`TextBlock`（带 `citations`）、`ThinkingBlock`（带签名）、`ServerToolUseBlock` / `WebSearchToolResultBlock` / `WebFetchToolResultBlock`（搜索 / 阅读链接的调用与结果）。
@@ -213,8 +219,10 @@ Messages API（Anthropic 兼容格式）协议类型，只声明应用用到的�
 - 附件：`FilePurpose = 'rich_layout_recognition' | 'user_data'`、`FileObject`、`ApiErrorBody`。
 
 #### `client.ts`
+
 HTTP / 流式请求客户端。
-- `API_ORIGIN`：构建期注入（`DefinePlugin` 的 `__API_ORIGIN__`），默认 `https://api.deepseek.com`；`ANTHROPIC_BASE_URL = ${API_ORIGIN}/anthropic/v1`。
+
+- `BFF_BASE`：构建期注入（`DefinePlugin` 的 `__BFF_BASE__`），开发 `/v1`、生产 `https://api.shunkai-dg.cn/v1`；`API_CREDENTIALS` 同时注入并作为 `fetch` 的 `credentials`。
 - `ApiError` 类：`kind`（`http` / `stream` / `network` / `interrupted` / `protocol`）+ `message`（字符串或可翻译的 `TranslationMessage`）+ `status`。
 - `request(url, init)`：统一 fetch 封装，非 2xx 抛出 `ApiError`，网络失败归类 `network`，中止透传原错误。
 - `verifyApiKey`：`GET /models` 校验 Key（不产生费用）。
@@ -222,29 +230,37 @@ HTTP / 流式请求客户端。
 - `streamMessage(apiKey, body, signal)`：`POST /anthropic/v1/messages`（`stream:true`）的 **AsyncGenerator**，逐个产出 `MessageStreamEvent`；校验 `Content-Type: text/event-stream`，解析每帧，遇到 `message_stop` 结束，流提前结束抛 `interrupted`。
 
 #### `sse.ts`
+
 WHATWG 规范的 SSE 解析器，不依赖 `EventSource`（因为需要自定义 header 与中止）。
+
 - `ServerSentEventDecoder`：增量解码，按 CRLF/LF/CR 切行，累积 `data`（多行以 `\n` 连接）/ `event` / `id`，空行派发；忽略注释行（保活）。
 - `readServerSentEvents(stream, signal)`：字节流 → `TextDecoder(stream:true 防多字节截断)` → decoder → 逐个 `yield`；中止时 `reader.cancel()` 释放连接。
 
 #### `parseEvent.ts`
+
 `readMessageEvent(value)`：对原始 JSON 做**防御式校验**后转换为 `MessageStreamEvent`。未识别 / 字段不合法的事件静默丢弃（不影响后续有效内容）；只校验消费所需字段，签名等保持原样。`readBlock` / `readDelta` 分别校验内容块与增量。
 
 #### `errors.ts`
+
 错误分类（不生成文案，文案由各场景自行匹配）：
+
 - `classifyStatus(status)` / `classifyApiError(error)` → `ApiErrorCondition`（unauthorized / insufficientBalance / tooLarge / rateLimited / serverBusy / network / other）。
 - `isRetryableApiError`：网络 / 限流 / 服务端繁忙可重试。
 - `getFileErrorCode` / `extractFileIds`：识别 400 中「附件 file_id 失效」（`fileIdMissing` / `fileDataMissing` / `invalidFileId`），并从文案提取 `file-api-*` id，用于失效补传。
 - `getUploadErrorInfo`：识别上传 400（文件数上限 / 存储上限 / 解析失败）。
 
 #### `speech.ts`
+
 语音接口：
+
 - `transcribe(apiKey, audio, signal)`：`POST /v1/tools/asr`，上传 WAV/Ogg Opus → 返回全文。
 - `synthesize(apiKey, text, voice, signal)`：`POST /v1/tools/tts`，返回裸 PCM 字节流（24kHz 单声道 16-bit 小端，`TTS_SAMPLE_RATE`）；`TtsVoice = 'stella' | 'tide'`；服务端默认过滤代码块 / 表格 / 引用 / 长公式。
 
 ### 6.2 `services/chat/` — 会话领域核心
 
 #### `types.ts`（数据模型）
-- `FileAttachment`：`id`（本地主键，IndexedDB files 表）/ `serverId`（Files API 的 file_id，可为 null）/ `name` / `size` / `isImage` / `mimeType`。
+
+- `FileAttachment`：`id`（本地主键，IndexedDB files 表）/ `serverId`（Files API 的 file_id，可为 null）/ `storageId`（BFF 归档的原件 id，可为 null；其他设备靠它换短期签名地址）/ `name` / `size` / `isImage` / `mimeType`。
 - `MessageBranch`：`parentId?` / `selectedChildId?`，缺省按线性列表处理。
 - `UserMessage`：content + files + createdAt。
 - `AssistantMessage`：model / thinking / search / latestReminder 快照 / `prefix`（可否作续写前缀）/ `status`（`pending|streaming|done|stopped|error`）/ `blocks`（`ThinkingPart|TextPart|ServerToolBlock`）/ stopReason / stopDetails / usage / error。
@@ -252,7 +268,9 @@ WHATWG 规范的 SSE 解析器，不依赖 `EventSource`（因为需要自定义
 - `SessionSummary` + `toSessionSummary`：列表只取元数据，避免把完整消息带进列表。
 
 #### `store.ts`（1045 行，领域中枢）
+
 基于 Zustand 的 `ChatState`：
+
 ```
 ready / initError / importingHistory
 sessions: SessionSummary[]          // 仅元数据，按 updatedAt 降序
@@ -261,9 +279,11 @@ sessionLoadErrors / sessionSaveErrors
 activeId: string | null             // null = 欢迎页
 streaming: Record<id, AbortController>
 ```
+
 模块级变量维护：`sessionAccess`（LRU 时间戳）、`unsavedSessions`、`pendingFiles`（保存失败时保留原件）、`deletingSessions` / `deletionTasks`、`streamFlushes`、`historyEpoch`（导入 / 删除期间的并发屏障）、`sessionLoads`（同会话并发读取合并）。
 
 核心导出（action）：
+
 - `initChat()`：加载会话摘要列表，幂等（复用进行中的 `initTask`）。
 - `selectSession(id)` / `newChat()`：切换 / 新建，触发详情异步加载。
 - `ensureSessionLoaded(id)`：合并并发读取，读取后 `normalizeSession` + `settleInterrupted`（把中断的 pending/streaming 回复按 stopped 收尾）。
@@ -279,6 +299,7 @@ streaming: Record<id, AbortController>
 内部关键流程 `streamReply`（见 [13.3](#133-流式回复-streamreply)）：补齐附件 serverId → 构造请求 → 消费流 → 帧节流 flush → 结束 / 失败落盘；含附件失效自动补传重试（`FILE_RETRY_LIMIT=2`，指数退避）。
 
 #### `reply.ts`（流式归并与请求构造，纯函数）
+
 - `applyEvent(reply, event, now, blockIndexes)`：把一个 SSE 事件合并进回复。`content_block_start` 追加可识别块（跳过 `tool_use` 等不展示块并置 `prefix:false`）；`content_block_delta` 按临时索引映射累加 text / thinking / signature / citations；`message_delta` 更新 stopReason 与累计 usage。
 - `settleReply(reply, status, now, error?)`：回复结束收尾；未结束思考块补 `endedAt`；`refusal` 时丢弃已下发的思考与正文（协议要求），只保留工具块。
 - `getReplyText(reply)`：所有文本块拼接（复制 / 判断有无回答）。
@@ -288,14 +309,17 @@ streaming: Record<id, AbortController>
 - `getThinkingSeconds(startedAt, endedAt)`：思考用时，至少 1 秒。
 
 #### `view.ts`（回复 → 展示视图，纯计算）
+
 `buildReplyView(reply, streaming)` 把内容块推导成界面结构 `ReplyView`：
+
 - `steps`：时间线步骤——`thinking`（相邻思考块合并）、`search`（普通搜索按 kind 聚合，边想边搜只合并相邻同类）、`open` / `find` / `read_link`（工具调用）、`text`（工具前说明文字）。
 - `answer`：最后一个思考 / 工具块后的正文，markdown 中在引用处插入 `[citation:N]`。
 - `sources`：全部可引用来源（`SourceRegistry` 按 URL 去重编号，先出现先编号，后续结果补齐元数据）。
 - `searchResults`：去重后的搜索网页，供底部汇总与搜索列表面板。
-另有 `getTotalThinkingSeconds`（思考总用时）、`getAreaTitle`（折叠区标题文案，随流式状态变化）、`isDeepSearchKind` / `isImageSearchKind` 等辅助。
+  另有 `getTotalThinkingSeconds`（思考总用时）、`getAreaTitle`（折叠区标题文案，随流式状态变化）、`isDeepSearchKind` / `isImageSearchKind` 等辅助。
 
 #### `branches.ts`（消息分支树）
+
 - `normalizeSession`：把线性列表规范化为单分支（补 `parentId` / `selectedChildId` / `rootMessageId`）。
 - `getVisibleMessages(session)`：沿 `selectedChildId` 取当前选中路径。
 - `buildMessageVersions(session, previous)`：一次遍历收集每个节点的兄弟版本列表，未变化时复用旧对象避免流式更新重绘历史。
@@ -303,40 +327,52 @@ streaming: Record<id, AbortController>
 - `selectVersion(session, messageId)`：切换当前路径上某节点的兄弟版本，恢复该版本已选中的后续分支。
 
 #### `db.ts`（IndexedDB，idb 封装）
+
 `ChatDB` schema（`DB_VERSION=11`）：
+
 - `sessions`（key: id，完整会话）、`sessionSummaries`（key: id，含 `fileIds` 多值索引）、`files`（key: id，`StoredFile{id,blob}` 原件）。
 - `sessionsStaging` / `filesStaging`：导入暂存区，校验通过后同事务替换正式数据。
-导出：`loadSessionSummaries` / `loadSession` / `loadAllSessions` / `saveSession`（同事务写会话+摘要+原件）/ `renameSession` / `deleteSession`（仅清理无引用原件）/ `saveFiles` / `loadFile` / 暂存系列（`clearStaging` / `addStagingSession` / `saveStagingFiles` / `updateStagingFileTypes` / `commitStaging`）/ `reportStorageError`。
-设计：每操作拿连接后立即建事务；写入失败显式 `abortTransaction` 保证原子回滚。
+  导出：`loadSessionSummaries` / `loadSession` / `loadAllSessions` / `saveSession`（同事务写会话+摘要+原件）/ `renameSession` / `deleteSession`（仅清理无引用原件）/ `saveFiles` / `loadFile` / 暂存系列（`clearStaging` / `addStagingSession` / `saveStagingFiles` / `updateStagingFileTypes` / `commitStaging`）/ `reportStorageError`。
+  设计：每操作拿连接后立即建事务；写入失败显式 `abortTransaction` 保证原子回滚。
 
 #### `route.ts`（会话地址同步）
+
 - `getSessionUrl(id)`：`<根目录>chat/<id>`。
 - `readSessionRoute()`：解析当前地址为 home / session / unknown。
 - `bindSessionUrl()`：返回取消函数。地址 ↔ 会话双向同步：store `ready` 后按地址还原会话（`selectSession` 或回收到 `newChat`）；会话变化时 `replaceState` 写回地址（用 replaceState 不堆积历史）；监听 `popstate` 支持前进后退。`file://` 下不接管路由。
 
 #### `drafts.ts`
+
 按会话维护未发送草稿（文本 + 附件引用），`getDraft` / `clearDraft` / `clearSentDraft` / `prepareDraftMessage`（从草稿与上传任务组装出可发送的 `{text, files}`，含原件 blob）。
 
 #### `describe.ts`
+
 `describeReply(reply)`：把出错 / 未正常结束 / 模板回复转成界面提示 `Notice`（text + 可选 presentation/action）。按错误 kind 与 status 分类映射到翻译 key，附带 `apiKey` / `topUp` 操作引导；`refusal` 与模板用正文样式展示。
 
 #### `latestReminder.ts`
+
 `createLatestReminder({locale, location}, now)`：生成模型约定的五项信息快照（日期、星期、位置、`Web`、语言），作为 `latest_reminder` 角色消息随请求发送，各回答版本独立保存。
 
 #### `searchMessages.ts`
+
 跨会话全文搜索：遍历 IndexedDB 全部会话正文（`loadAllSessions`），匹配后返回命中会话与消息定位。
 
 #### `sessionGroups.ts`
+
 会话列表按时间分组（今天 / 昨天 / 近 7 天 / 更早），供侧边栏分组展示。
 
 #### `backup.ts`
+
 导入 / 导出 / 全部删除的**串行队列**入口（`backupQueue`），避免读取归档时数据被清空或两个替换事务交错：
+
 - `exportHistory()` → 动态 import `history/exportArchive`，读取全部会话（已打开的用缓存快照，未打开的逐条读 DB），生成 ZIP。
 - `importHistory(file)` → 先 `checkArchiveFormat` 校验版本，再 `replaceHistory(() => importArchive(file))`。
 - `clearHistory()` → `replaceHistory` 空写入。
 
 #### `history/`（历史导入导出子系统）
+
 详见 [src/services/chat/history/README.md](file:///d:/ZZH/aska/github/deepseek-chat-demo/src/services/chat/history/README.md)。使用 `export_format_version: 3` 的 ZIP：
+
 - `format.ts` / `schema.ts`：归档类型与字段校验。
 - `toLocal.ts` / `toArchive.ts`：归档片段 ↔ 本地消息转换（状态映射、模板、思考用时、工具结果、read_link 签名等）。
 - `importArchive.ts` / `exportArchive.ts`：条目读取、暂存写入与归档组装。
@@ -345,13 +381,13 @@ streaming: Record<id, AbortController>
 
 ### 6.3 `services/markdown/` — Markdown 渲染支撑
 
-| 文件 | 职责 |
-|---|---|
-| `parse.ts` | `toMdast(markdown)`：用 `mdast-util-from-markdown` + GFM / 数学扩展解析为 AST；处理 citation 角标（`[citation:N]` 转为可点击引用节点）、链接、删除线等转换 |
-| `highlight.ts` | Prism 语法高亮封装 |
-| `katex.ts` | `ensureKatex()` 异步加载 KaTeX 样式与字体（main.tsx 首屏调用），公式渲染懒加载 |
-| `mermaid.ts` / `mermaidExport.ts` | Mermaid 图表渲染与导出 PNG |
-| `mermaidLog.ts` | Mermaid 渲染错误日志收集（供 `MermaidLogDialog` 展示） |
+| 文件                              | 职责                                                                                                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parse.ts`                        | `toMdast(markdown)`：用 `mdast-util-from-markdown` + GFM / 数学扩展解析为 AST；处理 citation 角标（`[citation:N]` 转为可点击引用节点）、链接、删除线等转换 |
+| `highlight.ts`                    | Prism 语法高亮封装                                                                                                                                         |
+| `katex.ts`                        | `ensureKatex()` 异步加载 KaTeX 样式与字体（main.tsx 首屏调用），公式渲染懒加载                                                                             |
+| `mermaid.ts` / `mermaidExport.ts` | Mermaid 图表渲染与导出 PNG                                                                                                                                 |
+| `mermaidLog.ts`                   | Mermaid 渲染错误日志收集（供 `MermaidLogDialog` 展示）                                                                                                     |
 
 ### 6.4 `services/speech/`
 
@@ -373,21 +409,23 @@ streaming: Record<id, AbortController>
 按功能域分目录，组件为函数组件，大量使用 `memo` 避免流式更新引发的无关重渲染；样式使用 **CSS Modules**（`*.module.css`，`localIdentName: [local]-[hash:6]`）。
 
 ### 7.1 `components/base/` — 基础 UI 原子件
-| 文件 | 职责 / 关键导出 |
-|---|---|
-| `Button.tsx` | `Button`：统一 variant（solid/outlined/...）/ size（s/m）/ block 样式与原生 button 渲染 |
-| `IconButton.tsx` | `IconButton`：图标按钮，含 tooltip / 加载态 |
-| `Modal.tsx` | `Modal`：模态框（遮罩 + 居中 + 关闭） |
-| `Menu.tsx` | `Menu` + `MenuOption`：下拉菜单 |
-| `Select.tsx` | `Select`：下拉选择 |
-| `Tooltip.tsx` | `Tooltip`：悬浮提示 |
-| `Toast.tsx` / `toastState.ts` | 全局 toast 渲染与状态（`showToast`） |
-| `ImageViewer.tsx` / `imageViewerState.ts` | 图片全屏查看器（缩放 / 翻页）与状态 |
-| `anchored.ts` | 浮动元素定位工具（锚定计算，供菜单 / 搜索面板） |
-| `usePresence.ts` | `usePresence` Hook：关闭动画期间保持挂载，避免退出动画被提前卸载 |
-| `icons.tsx` | 全部内联 SVG 图标（`IconXxx` 系列） |
+
+| 文件                                      | 职责 / 关键导出                                                                         |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| `Button.tsx`                              | `Button`：统一 variant（solid/outlined/...）/ size（s/m）/ block 样式与原生 button 渲染 |
+| `IconButton.tsx`                          | `IconButton`：图标按钮，含 tooltip / 加载态                                             |
+| `Modal.tsx`                               | `Modal`：模态框（遮罩 + 居中 + 关闭）                                                   |
+| `Menu.tsx`                                | `Menu` + `MenuOption`：下拉菜单                                                         |
+| `Select.tsx`                              | `Select`：下拉选择                                                                      |
+| `Tooltip.tsx`                             | `Tooltip`：悬浮提示                                                                     |
+| `Toast.tsx` / `toastState.ts`             | 全局 toast 渲染与状态（`showToast`）                                                    |
+| `ImageViewer.tsx` / `imageViewerState.ts` | 图片全屏查看器（缩放 / 翻页）与状态                                                     |
+| `anchored.ts`                             | 浮动元素定位工具（锚定计算，供菜单 / 搜索面板）                                         |
+| `usePresence.ts`                          | `usePresence` Hook：关闭动画期间保持挂载，避免退出动画被提前卸载                        |
+| `icons.tsx`                               | 全部内联 SVG 图标（`IconXxx` 系列）                                                     |
 
 ### 7.2 `components/chatInput/` — 输入区
+
 - `ChatInput.tsx`：聊天输入主组件，按 `sessionId` 切换复用输入状态；整合附件、模型选择、语音、发送。
 - `DraftAttachments.tsx`：草稿附件卡片展示（上传进度 / 失败重试 / 删除）。
 - `DragMask.tsx`：拖拽文件进入时的遮罩提示。
@@ -396,6 +434,7 @@ streaming: Record<id, AbortController>
 - `Spectrum.tsx`：实时音频频谱可视化（`AnalyserNode`）。
 
 ### 7.3 `components/messages/` — 消息渲染
+
 - `MessageList.tsx`：消息列表容器，虚拟/懒加载无关，管理滚动定位与 `scrollContext`。
 - `UserMessage.tsx`：用户消息（正文 + 附件 + 编辑入口）。
 - `AssistantMessage.tsx`：助手消息主组件，组合思考折叠区、工具步骤时间线、正文 Markdown、引用角标、错误提示。
@@ -409,17 +448,20 @@ streaming: Record<id, AbortController>
 - `useReplyView.ts`：调用 `buildReplyView` 的 Hook，带流式刷新节流。
 
 ### 7.4 `components/session/` — 会话主视图
+
 - `SessionView.tsx`：当前会话主区（消息列表 + 输入区）。
 - `Welcome.tsx`：新对话欢迎页（功能入口 / 示例提问）。
 - `MobileHeader.tsx`：移动端顶栏（菜单 + 标题）。
 
 ### 7.5 `components/sider/` — 侧边栏
+
 - `Sider.tsx`：导出 `Sider`（基础列表）/ `DesktopSider` / `MobileSider` / `PushSider` 三种形态；含搜索、新建、会话列表、设置入口。
 - `CollapsedSider.tsx`：桌面端收起态的窄条（仅图标）。
 - `SessionItem.tsx`：单个会话条目（标题 / 时间 / 重命名 / 删除菜单），`memo`。
 - `mobileSiderState.ts`：移动端抽屉开合状态。
 
 ### 7.6 `components/markdown/` — Markdown 渲染
+
 - `Markdown.tsx`：入口，`useThrottleMarkdownRender` 节流解析 AST 后交渲染器（避免流式高频重解析卡顿）。
 - `MarkdownAstRenderer.tsx`：AST → React 节点，按节点类型分发（段落 / 列表 / 代码 / 表格 / 引用 / 链接 / 图片 / 公式 / Mermaid / citation）。
 - `CodeBlock.tsx`：代码块（Prism 高亮 + 复制 + `useFloatingCodeBanner` 浮动复制条 + 语言标签）。
@@ -430,6 +472,7 @@ streaming: Record<id, AbortController>
 - `useThrottleMarkdownRender.ts` / `useFloatingCodeBanner.ts`：渲染节流 / 代码块浮动条 Hook。
 
 ### 7.7 `components/search/` — 联网搜索展示
+
 - `SearchPanel.tsx` + `searchPanelState.ts`：右侧搜索结果来源面板与状态。
 - `SourceCard.tsx`：单个来源卡片（标题 / 站点 / 摘要 / 图标 / 时间）。
 - `CitationLink.tsx`：正文中的引用角标 `[N]`。
@@ -438,12 +481,14 @@ streaming: Record<id, AbortController>
 - `FallbackImage.tsx`：图片加载失败占位。
 
 ### 7.8 `components/settings/`
+
 - `SettingsDialog.tsx`：设置对话框（API Key、语言、主题、位置、模型、思考 / 搜索开关、朗读音色、系统提示词、历史导入导出、全部删除）。
 - `ApiKeyField.tsx`：`useApiKeyEditor` + `ApiKeyField` + `ApiKeyConfirm`，API Key 输入 / 校验 / 确认。
 - `useApiKeyForm.ts`：API Key 表单逻辑（含 `verifyApiKey` 校验）。
 - `settingsDialogState.ts`：对话框开关 + `ensureApiKey`（首次使用引导输入 Key）。
 
 ### 7.9 其他组件目录
+
 - `login/`：`LoginPage` 登录页 + `LoginIcons`（DeepSeek / 微信 Logo）+ `QrPlaceholder` 二维码占位。
 - `files/`：`FileCard` 附件卡片 + `FileIcon` 按扩展名显示文件类型图标。
 - `htmlPreview/`：`HtmlPreviewPanel` HTML 预览面板 + `htmlPreviewState`（用于预览模型生成的 HTML 内容）。
@@ -454,18 +499,20 @@ streaming: Record<id, AbortController>
 ## 8. i18n 与 utils
 
 ### 8.1 `i18n/`
+
 - `index.ts`：以 `zh.ts` 的 key 为 `TranslationKey` 类型来源（键齐全性由 TS 保证）；`createTranslate` 用 `{name}` 占位符替换；`useTranslate()` 返回当前语言翻译函数（订阅 `useSettings.locale`），`translate(key, params)` 为非 Hook 调用（读当前语言）。
 - `en.ts` / `zh.ts`：英 / 中文词条表。
 - `TranslationMessage = { key, params? }`；`LinkedMessage` 扩展带可选 `type` 与文字 `link`（用于 toast 中的操作链接）。
 
 ### 8.2 `utils/`
-| 文件 | 职责 |
-|---|---|
-| `id.ts` | `createId()`：生成本地唯一 id（会话 / 消息 / 附件主键） |
-| `format.ts` | `formatDate` 等日期格式化 |
-| `clipboard.ts` | 剪贴板写入封装 |
-| `download.ts` | 触发浏览器下载（Blob → a[download]） |
-| `html.ts` | HTML 处理工具（预览 / 安全过滤相关） |
+
+| 文件           | 职责                                                    |
+| -------------- | ------------------------------------------------------- |
+| `id.ts`        | `createId()`：生成本地唯一 id（会话 / 消息 / 附件主键） |
+| `format.ts`    | `formatDate` 等日期格式化                               |
+| `clipboard.ts` | 剪贴板写入封装                                          |
+| `download.ts`  | 触发浏览器下载（Blob → a[download]）                    |
+| `html.ts`      | HTML 处理工具（预览 / 安全过滤相关）                    |
 
 ---
 
@@ -490,24 +537,25 @@ settleReply (chat/reply.ts)          结束收尾（done/stopped/error/refusal�
 
 ### 9.2 关键函数速查
 
-| 函数 | 位置 | 说明 |
-|---|---|---|
-| `initChat()` | `chat/store.ts` | 加载会话列表，幂等 |
-| `sendMessage(targetId)` | `chat/store.ts` | 提交草稿，新建或追加会话并触发流 |
+| 函数                                     | 位置                    | 说明                                            |
+| ---------------------------------------- | ----------------------- | ----------------------------------------------- |
+| `initChat()`                             | `chat/store.ts`         | 加载会话列表，幂等                              |
+| `sendMessage(targetId)`                  | `chat/store.ts`         | 提交草稿，新建或追加会话并触发流                |
 | `streamReply(sessionId, reply, request)` | `chat/store.ts`（内部） | 补齐附件 → 请求 → 消费流 → 落盘；含失效补传重试 |
-| `applyEvent / settleReply` | `chat/reply.ts` | 流式归并 / 结束收尾（纯函数） |
-| `toRequestMessages` | `chat/reply.ts` | 本地消息树 → API 请求 messages |
-| `buildReplyView` | `chat/view.ts` | 回复内容块 → 展示视图（步骤 / 正文 / 来源） |
-| `getVisibleMessages` | `chat/branches.ts` | 取当前选中分支路径 |
-| `appendBranch / selectVersion` | `chat/branches.ts` | 新增分支 / 切换版本 |
-| `replaceHistory(write)` | `chat/store.ts` | 原子替换全部历史（导入 / 删除） |
-| `commitStaging()` | `chat/db.ts` | 暂存 → 正式数据同事务替换 |
-| `bindSessionUrl()` | `chat/route.ts` | 会话 ↔ 地址栏双向同步 |
-| `classifyApiError / getFileErrorCode` | `api/errors.ts` | 错误分类 / 附件失效识别 |
-| `uploadAttachment / cancelUpload` | `attachments.ts` | 排队上传（并发 3）/ 取消 |
-| `useChatStore` | `chat/store.ts` | 会话领域 Zustand store |
-| `useTheme / setupTheme` | `app/theme.ts` | 主题 Hook 与初始化 |
-| `bindChatPersistence` | `chat/store.ts` | 页面隐藏前落盘 |
+| `applyEvent / settleReply`               | `chat/reply.ts`         | 流式归并 / 结束收尾（纯函数）                   |
+| `toRequestMessages`                      | `chat/reply.ts`         | 本地消息树 → API 请求 messages                  |
+| `buildReplyView`                         | `chat/view.ts`          | 回复内容块 → 展示视图（步骤 / 正文 / 来源）     |
+| `getVisibleMessages`                     | `chat/branches.ts`      | 取当前选中分支路径                              |
+| `appendBranch / selectVersion`           | `chat/branches.ts`      | 新增分支 / 切换版本                             |
+| `replaceHistory(write)`                  | `chat/store.ts`         | 原子替换全部历史（导入 / 删除）                 |
+| `commitStaging()`                        | `chat/db.ts`            | 暂存 → 正式数据同事务替换                       |
+| `bindSessionUrl()`                       | `chat/route.ts`         | 会话 ↔ 地址栏双向同步                           |
+| `classifyApiError / getFileErrorCode`    | `api/errors.ts`         | 错误分类 / 附件失效识别                         |
+| `uploadAttachment / cancelUpload`        | `attachments.ts`        | 排队上传（并发 3）/ 取消；同时归档原件到 BFF    |
+| `getSignedUrls / contentUrl`             | `api/fileStorage.ts`    | 本地无原件时换取短期票据并拼出同源读取地址      |
+| `useChatStore`                           | `chat/store.ts`         | 会话领域 Zustand store                          |
+| `useTheme / setupTheme`                  | `app/theme.ts`          | 主题 Hook 与初始化                              |
+| `bindChatPersistence`                    | `chat/store.ts`         | 页面隐藏前落盘                                  |
 
 ### 9.3 关键类
 
@@ -536,6 +584,7 @@ chat/view     →  api/types, chat/types   （纯计算）
 ### 10.2 第三方依赖（package.json）
 
 **运行时**：
+
 - `react` / `react-dom` 18.3 — UI 框架
 - `zustand` 4.4 — 状态管理
 - `clsx` — className 拼接
@@ -548,7 +597,7 @@ chat/view     →  api/types, chat/types   （纯计算）
 - `mermaid` 11 — 图表渲染
 - `prismjs` 1.30 — 语法高亮
 
-**开发**：`@rspack/core` / `@rspack/cli` / `@rspack/dev-server` 2 — 构建与 dev server；`typescript` 7；`oxlint` / `oxfmt` —  lint 与格式化（配置见 `.oxlintrc.json` / `.oxfmtrc.json`）。
+**开发**：`@rspack/core` / `@rspack/cli` / `@rspack/dev-server` 2 — 构建与 dev server；`typescript` 7；`oxlint` / `oxfmt` — lint 与格式化（配置见 `.oxlintrc.json` / `.oxfmtrc.json`）。
 
 ---
 
@@ -558,29 +607,42 @@ chat/view     →  api/types, chat/types   （纯计算）
 
 需 Node.js 22.12+ 与 pnpm。
 
-| 命令 | 说明 |
-|---|---|
-| `pnpm install` | 安装依赖 |
-| `pnpm dev` | 启动 dev server（`rspack serve`），端口 8090，SPA history 回退 |
-| `pnpm build` | 生产构建到 `dist/` |
-| `pnpm type` | `tsc` 类型检查（`noEmit`） |
-| `pnpm lint` | oxlint 检查 `src` 与配置 |
-| `pnpm format` | oxfmt 格式化 |
+| 命令              | 说明                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `pnpm install`    | 安装依赖                                                                           |
+| `pnpm dev`        | 启动 dev server（`rspack serve`），端口 8090，SPA history 回退，接口代理到本地后端 |
+| `pnpm build`      | 生产构建到 `dist/`（chat./api. 域名）                                              |
+| `pnpm build:prod` | 显式生产构建（`--node-env production`）                                            |
+| `pnpm build:dev`  | 本地地址开发包（内网联调）                                                         |
+| `pnpm type`       | `tsc` 类型检查（`noEmit`）                                                         |
+| `pnpm lint`       | oxlint 检查 `src`、`config` 与配置                                                 |
+| `pnpm format`     | oxfmt 格式化                                                                       |
 
-### 11.2 `rspack.config.ts` 要点
+### 11.2 `rspack.config.ts` / `config/env.ts` 要点
 
-- 导出 `createConfig({ apiOrigin?, basePath?, devServer? })` 工厂，默认导出其调用结果；可自定义 API 地址（注入 `__API_ORIGIN__`）与部署子目录 / dev server 代理。
+- `config/env.ts` 集中定义开发/生产两套地址：开发 `WEB_ORIGIN=http://localhost:8090`，后端
+  `http://127.0.0.1:3000`（同源前缀 `/auth`、`/v1` + devServer 代理）；生产
+  `WEB_ORIGIN=https://chat.shunkai-dg.cn`，`AUTH_BASE=https://api.shunkai-dg.cn/auth`，
+  `BFF_BASE=https://api.shunkai-dg.cn/v1`。环境名按 `APP_ENV` → `NODE_ENV` → `.env` 的
+  `APP_ENV` 解析；地址可被环境变量或 `.env.<APP_ENV>` 覆盖（见 `.env.example`、
+  [docs/环境与部署.md](环境与部署.md)）。
+- 导出 `createConfig({ env?, basePath?, devServer? })` 工厂，默认导出其调用结果；构建时打印生效地址。
 - `entry: ./src/main.tsx`；`output.publicPath: 'auto'`（按脚本地址推导，支持 `file://` 下异步 chunk 与字体相对加载）。
 - CSS Modules 用默认导出（`namedExports: false`），类名 `[local]-[hash:6]`；CSS 经 `lightningcss-loader` 按浏览器目标压缩。
 - TS/TSX 用 `builtin:swc-loader`（React automatic runtime，external helpers）。
-- 插件：`HtmlRspackPlugin`（`scriptLoading: 'defer'`，注入 `application-version` meta 与 `appBasePath` 模板参数）、`DefinePlugin`（`__API_ORIGIN__`）、`CopyRspackPlugin`（拷贝 LICENSE 到 dist）。
+- 插件：`HtmlRspackPlugin`（`scriptLoading: 'defer'`，注入 `application-version` meta 与 `appBasePath` 模板参数）、`DefinePlugin`（`__APP_ENV__` / `__WEB_ORIGIN__` / `__API_ORIGIN__` / `__AUTH_BASE__` / `__BFF_BASE__` / `__API_CREDENTIALS__`）、`CopyRspackPlugin`（拷贝 LICENSE 到 dist）。
+- 前端读取入口：`src/services/env.ts`（`APP_ENV` / `WEB_ORIGIN` / `API_CREDENTIALS` / `appUrl()`），请求层用它决定 `fetch` 的 `credentials`。
 - `devtool`: dev 用 `cheap-module-source-map`，生产关闭；`lazyCompilation: false`（预编译异步模块，保持首次加载代码高亮 / 公式时的页面状态）。
-- `devServer`: 端口 8090，`historyApiFallback: true`。
+- `devServer`: 端口 `DEV_PORT`（默认 8090），`historyApiFallback: true`；开发环境按接口前缀代理到 `DEV_API_TARGET`。
 
 ### 11.3 部署注意事项
 
+- 生产前后端分域（`chat.` / `api.`）：`api.shunkai-dg.cn` 需回 `Access-Control-Allow-Origin: https://chat.shunkai-dg.cn`（不能是 `*`）和 `Access-Control-Allow-Credentials: true`，并放行 `Authorization`、`Content-Type`、`Accept`、`X-Request-Id`、`X-File-Name`、`X-File-Mime` 的预检。
+- `<img>` 直连的 `/v1/files/content` 签名地址属于跨域子资源：需要画进 canvas（导出 ZIP、Mermaid 导出）时响应必须带 CORS 头。
+- 同源反代部署（前端 Nginx 转发 `/v1`、`/auth` 到后端）要用 `BFF_BASE=/v1`、`AUTH_BASE=/auth` 重新构建，否则浏览器仍打 api 域名。
+- SSE 续推 `GET /v1/chat/stream` 要求反代关闭缓冲并放宽读超时（nginx `proxy_buffering off; proxy_read_timeout 3600s;`）。
 - 会话地址是真实路径 `/chat/<id>`，服务器需配置回退到 `index.html`（nginx `try_files $uri $uri/ /index.html;`，Caddy `try_files {path} /index.html`），否则刷新 / 直链 404。
-- 子目录部署无需额外配置：`index.html` 内联脚本会推导应用根目录写入 `<base>`，资源与会话 URL 自动加前缀。
+- 子目录部署无需额外配置：`index.html` 内联脚本会推导应用根目录写入 `<base>`，资源与会话 URL 自动加前缀（或用 `BASE_PATH=/app/` 兜底）。
 - 直接打开 `dist/index.html`（`file://`）可用，但要求浏览器支持 `file://` 页面的存储，且 API 服务允许其跨域请求。
 - 构建产物包含 `dist/LICENSE`，分发时需保留。
 
@@ -590,30 +652,30 @@ chat/view     →  api/types, chat/types   （纯计算）
 
 ### 12.1 localStorage（设置与登录态）
 
-| Key | 内容 |
-|---|---|
-| `chat-demo:api-key` | API Key |
-| `chat-demo:locale` | 界面语言 |
-| `chat-demo:theme-preference` | 主题偏好 |
-| `chat-demo:location` | 用户位置（JSON） |
-| `chat-demo:tts-voice` | 朗读音色 |
-| `chat-demo:model` | 默认模型 |
-| `chat-demo:thinking` / `chat-demo:search` | 深度思考 / 智能搜索开关 |
-| `chat-demo:sider-collapsed` | 侧边栏收起 |
-| `chat-demo:system-prompt` / `chat-demo:system-prompt-enabled` | 系统提示词及开关 |
-| `chat-demo:login-user` | 登录用户（JSON） |
+| Key                                                           | 内容                    |
+| ------------------------------------------------------------- | ----------------------- |
+| `chat-demo:api-key`                                           | API Key                 |
+| `chat-demo:locale`                                            | 界面语言                |
+| `chat-demo:theme-preference`                                  | 主题偏好                |
+| `chat-demo:location`                                          | 用户位置（JSON）        |
+| `chat-demo:tts-voice`                                         | 朗读音色                |
+| `chat-demo:model`                                             | 默认模型                |
+| `chat-demo:thinking` / `chat-demo:search`                     | 深度思考 / 智能搜索开关 |
+| `chat-demo:sider-collapsed`                                   | 侧边栏收起              |
+| `chat-demo:system-prompt` / `chat-demo:system-prompt-enabled` | 系统提示词及开关        |
+| `chat-demo:login-user`                                        | 登录用户（JSON）        |
 
 > 数据按浏览器配置文件 + 站点 origin 隔离。API Key 与设置**不**随历史导出。
 
 ### 12.2 IndexedDB（`chat-demo` 库，v11）
 
-| Object Store | Key | 内容 |
-|---|---|---|
-| `sessions` | id | 完整会话（含全部分支消息） |
-| `sessionSummaries` | id | 会话元数据 + `fileIds[]`（多值索引 `fileIds`，用于删除时判断原件是否仍被引用） |
-| `files` | id | 附件原件 `StoredFile{id, blob}`，所有引用同 id 的消息共用一份 |
-| `sessionsStaging` | id | 导入暂存会话 |
-| `filesStaging` | id | 导入暂存附件 |
+| Object Store       | Key | 内容                                                                           |
+| ------------------ | --- | ------------------------------------------------------------------------------ |
+| `sessions`         | id  | 完整会话（含全部分支消息）                                                     |
+| `sessionSummaries` | id  | 会话元数据 + `fileIds[]`（多值索引 `fileIds`，用于删除时判断原件是否仍被引用） |
+| `files`            | id  | 附件原件 `StoredFile{id, blob}`，所有引用同 id 的消息共用一份                  |
+| `sessionsStaging`  | id  | 导入暂存会话                                                                   |
+| `filesStaging`     | id  | 导入暂存附件                                                                   |
 
 ---
 
@@ -632,11 +694,12 @@ chat/view     →  api/types, chat/types   （纯计算）
        └ streamReply(sessionId, reply, {history, question})
 ```
 
-### 13.2 附件 serverId 补齐（`prepareFiles`）
+### 13.2 附件上传与原件归档（`prepareFiles`）
 
-- 本轮提问附件并行 `ensureServerId`：已有 serverId 直接用；正在上传等任务；否则读 IndexedDB 原件补传。任一失败整体失败（回复记 `upload` 错误，可重试）。
+- 本轮提问附件并行 `ensureUpload`：已有 serverId 直接用；正在上传等任务；否则读 IndexedDB 原件补传。任一失败整体失败（回复记 `upload` 错误，可重试）。
+- 上传时同时请求上游 Files API（对话上下文必需）与 BFF `/v1/files/originals`（跨设备归档）；归档失败不阻塞对话。
 - 历史轮次（进入上下文的）中缺 serverId 的附件（多为导入图片）从最新往前逐张补传，失败静默跳过（该附件不进本次请求，下次再试）。
-- 成功的 serverId 通过 `saveServerIds` 写回会话中所有引用同一附件的消息（编辑 / 重新生成共用附件）。
+- 成功的 serverId 与 storageId 通过 `saveUploadResults` 写回会话中所有引用同一附件的消息（编辑 / 重新生成共用附件）；已有 serverId 但缺 storageId 的旧数据在 `archiveOriginals` 中只补传原件。
 
 ### 13.3 流式回复（`streamReply`）
 
@@ -685,4 +748,4 @@ for attempt in 0..FILE_RETRY_LIMIT:
 
 ---
 
-*本文档基于仓库源码静态分析生成，对应版本 `0.1.1`。协议细节以 [DeepSeek API 文档](https://api-docs.deepseek.com/) 为准。*
+_本文档基于仓库源码静态分析生成，对应版本 `0.1.1`。协议细节以 [DeepSeek API 文档](https://api-docs.deepseek.com/) 为准。_

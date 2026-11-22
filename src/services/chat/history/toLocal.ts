@@ -36,6 +36,8 @@ const isWebUrl = (value: string) => {
 const toFile = (file: FileEntry): FileAttachment => ({
   id: file.id,
   serverId: null,
+  // 归档里的原件会重新写入 IndexedDB；服务端原件由补档流程按需创建
+  storageId: null,
   name: file.file_name,
   size: file.file_size,
   isImage: file.is_image,

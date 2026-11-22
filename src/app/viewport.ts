@@ -21,7 +21,8 @@ const subscribePushSider = (onChange: () => void) => {
   return () => pushSiderQuery.removeEventListener('change', onChange)
 }
 
-export const usePushSider = () => useSyncExternalStore(subscribePushSider, () => pushSiderQuery.matches)
+export const usePushSider = () =>
+  useSyncExternalStore(subscribePushSider, () => pushSiderQuery.matches)
 
 const preventPageScroll = (event: TouchEvent) => {
   if (event.touches.length !== 1) {

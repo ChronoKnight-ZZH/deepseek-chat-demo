@@ -69,7 +69,14 @@ export const Sider = ({
   }, [])
 
   return (
-    <div className={clsx(styles.sider, mobile && styles.mobile, push && styles.push, exiting && styles.exiting)}>
+    <div
+      className={clsx(
+        styles.sider,
+        mobile && styles.mobile,
+        push && styles.push,
+        exiting && styles.exiting
+      )}
+    >
       <div className={styles.top}>
         <div className={styles.appName}>{t('appName')}</div>
         <div className={styles.topActions}>

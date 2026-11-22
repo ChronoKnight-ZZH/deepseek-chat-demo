@@ -1,6 +1,7 @@
 import clsx from 'clsx'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
+import { contentUrl, getSignedUrls, type FileUrlSet } from '../../services/api/fileStorage.js'
 import { useUploads } from '../../services/attachments.js'
 import { loadFile } from '../../services/chat/db.js'
 import type { FileAttachment } from '../../services/chat/types.js'
@@ -42,6 +43,44 @@ const useUploadState = (file: FileAttachment) =>
     return task?.status === 'uploading' || task?.status === 'error' ? task : null
   })
 
+type RemoteState =
+  | { status: 'ready'; fileId: string; urls: FileUrlSet }
+  | { status: 'failed'; fileId: string }
+
+/**
+ * 本地没有原件时（换设备、清过缓存），用 storageId 向 BFF 换取短期地址。
+ * force 用于票据过期后重签一次；state 带 fileId 以免切换附件时串用地址。
+ */
+const useRemoteUrls = (fileId: string | null, sessionId: string, enabled: boolean) => {
+  const [state, setState] = useState<RemoteState | null>(null)
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    if (!enabled || !fileId) {
+      return
+    }
+    let cancelled = false
+    getSignedUrls(fileId, sessionId, { force: attempt > 0 })
+      .then((urls) => {
+        if (!cancelled) {
+          setState({ status: 'ready', fileId, urls })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setState({ status: 'failed', fileId })
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [enabled, fileId, sessionId, attempt])
+
+  const refresh = useCallback(() => setAttempt((value) => value + 1), [])
+  const current = state?.fileId === fileId ? state : null
+  return { current, refresh, refreshed: attempt > 0 }
+}
+
 /**
  * 消息里的附件：
  * - 图片：纯图片显示 120×120 缩略图，与文件混排时为 64×64；上传中显示 loading 蒙层，
@@ -49,15 +88,17 @@ const useUploadState = (file: FileAttachment) =>
  * - 文件：显示文件卡片。
  */
 export const MessageFile = ({
+  sessionId,
   file,
   onRetry,
 }: {
+  sessionId: string
   file: FileAttachment
   /** 本条消息补传失败且可重试时提供 */
   onRetry: (() => void) | null
 }) => {
   const t = useTranslate()
-  const url = useFileUrl(file.id)
+  const localUrl = useFileUrl(file.id)
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
   const upload = useUploadState(file)
   const uploading = upload?.status === 'uploading'
@@ -65,16 +106,50 @@ export const MessageFile = ({
   const retryable = failed && upload.retryable
   const errorText = failed ? t(upload.error.key, upload.error.params) : undefined
 
+  // 本地原件缺失时才走服务端：本地存在（含 0 字节不可能）就始终优先本地
+  const storageId = file.storageId
+  const {
+    current: remote,
+    refresh: refreshRemote,
+    refreshed,
+  } = useRemoteUrls(storageId, sessionId, localUrl === null && Boolean(storageId))
+  const remoteUrls = remote?.status === 'ready' ? remote.urls : null
+  // undefined = 本地原件仍在读，先显示占位；null = 本地确实没有，才退回服务端地址
+  const imageUrl =
+    localUrl === undefined
+      ? undefined
+      : (localUrl ??
+        (remoteUrls && storageId ? contentUrl(remoteUrls.urls.p, storageId, 'p') : null))
+  const downloadUrl =
+    localUrl === undefined
+      ? undefined
+      : (localUrl ??
+        (remoteUrls && storageId ? contentUrl(remoteUrls.urls.r, storageId, 'r') : null))
+
   const retry = retryable ? onRetry : null
 
-  if (file.isImage && url !== null) {
-    const preview = url ? (
-      failedUrl === url ? (
+  // 图片本地缺失但服务端有 storageId 时留在图片分支：等待换票或显示失效，
+  // 避免先闪一下文件卡片；没有 storageId 的旧图片仍退回文件卡片。
+  const remoteImage = localUrl === null && Boolean(storageId)
+  if (file.isImage && (imageUrl !== null || remoteImage)) {
+    const preview = imageUrl ? (
+      failedUrl === imageUrl ? (
         <span className={styles.failedIcon} role="img" aria-label={file.name}>
           <IconPhotoErrorFill20 />
         </span>
       ) : (
-        <img src={url} alt={file.name} onError={() => setFailedUrl(url)} />
+        <img
+          src={imageUrl}
+          alt={file.name}
+          onError={() => {
+            // 服务端票据可能已过期：同一次挂载内只重签一次，避免死循环
+            if (remoteUrls && !refreshed) {
+              refreshRemote()
+            } else {
+              setFailedUrl(imageUrl)
+            }
+          }}
+        />
       )
     ) : null
 
@@ -136,16 +211,23 @@ export const MessageFile = ({
     }
 
     // 正常态：页面内弹窗预览原件
-    return url ? (
+    return imageUrl ? (
       <button
         type="button"
         className={clsx(styles.image, styles.imageThumb)}
         title={file.name}
         aria-label={file.name}
-        onClick={() => openImageViewer(url, file.name)}
+        onClick={() => openImageViewer(imageUrl, file.name)}
       >
         {preview}
       </button>
+    ) : remote?.status === 'failed' ? (
+      // 本地缺失且服务端取不到原件：明确显示失效，避免一直空白
+      <div className={styles.image} title={file.name}>
+        <span className={styles.failedIcon} role="img" aria-label={file.name}>
+          <IconPhotoErrorFill20 />
+        </span>
+      </div>
     ) : (
       // 原件还没加载出来（极短暂）
       <div className={styles.image} />
@@ -159,7 +241,9 @@ export const MessageFile = ({
       status={uploading ? 'uploading' : failed ? 'error' : 'done'}
       error={errorText}
       onRetry={retry ?? undefined}
-      onOpen={url && !upload ? () => window.open(url, '_blank', 'noreferrer') : undefined}
+      onOpen={
+        downloadUrl && !upload ? () => window.open(downloadUrl, '_blank', 'noreferrer') : undefined
+      }
     />
   )
 }

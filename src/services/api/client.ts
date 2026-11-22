@@ -1,15 +1,11 @@
 import { translate, type TranslationMessage } from '../../i18n/index.js'
 import { getAuthToken, handleUnauthorized } from '../auth.js'
+import { API_CREDENTIALS } from '../env.js'
 import { readMessageEvent } from './parseEvent.js'
 import { readServerSentEvents } from './sse.js'
-import type {
-  CreateMessageRequest,
-  FileObject,
-  FilePurpose,
-  MessageStreamEvent,
-} from './types.js'
+import type { CreateMessageRequest, FileObject, FilePurpose, MessageStreamEvent } from './types.js'
 
-/** 同源 BFF 前缀；开发环境由 rspack devServer 代理到 auth-demo */
+/** BFF 前缀：开发同源 /v1（devServer 代理），生产 https://api.shunkai-dg.cn/v1 */
 export const BFF_BASE = __BFF_BASE__.replace(/\/+$/, '')
 
 export type ApiErrorKind =
@@ -93,7 +89,7 @@ const readErrorResponse = async (
   })
 }
 
-/** 同源请求：自动带 Bearer，401 统一切回登录页 */
+/** 请求 BFF：自动带 Bearer，401 统一切回登录页 */
 export const request = async (path: string, init: RequestInit = {}): Promise<Response> => {
   const headers = new Headers(init.headers)
   if (!headers.has('Accept')) {
@@ -108,7 +104,8 @@ export const request = async (path: string, init: RequestInit = {}): Promise<Res
     response = await fetch(`${BFF_BASE}${path}`, {
       ...init,
       headers,
-      credentials: 'same-origin',
+      // 分域部署（chat.* → api.*）需要 include 才能带上票据 Cookie
+      credentials: API_CREDENTIALS,
       cache: 'no-store',
     })
   } catch (error) {
@@ -166,7 +163,12 @@ export type StreamChatOptions = {
 }
 
 type RelayMeta = { requestId?: string; cursor?: number; resumed?: boolean; cached?: boolean }
-type RelayEnd = { requestId?: string; status?: string; code?: string | null; finishReason?: string | null }
+type RelayEnd = {
+  requestId?: string
+  status?: string
+  code?: string | null
+  finishReason?: string | null
+}
 
 const delay = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve) => {
@@ -301,9 +303,7 @@ export async function* streamChat({
         throw error
       }
       const retryable =
-        !(error instanceof ApiError) ||
-        error.kind === 'network' ||
-        error.kind === 'interrupted'
+        !(error instanceof ApiError) || error.kind === 'network' || error.kind === 'interrupted'
       if (!retryable) {
         throw error
       }

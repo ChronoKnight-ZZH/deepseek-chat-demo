@@ -57,7 +57,7 @@ Deploying under a subdirectory (such as `https://example.com/app/`) needs no ext
 
 ## Data and storage
 
-Settings remain in browser localStorage. Conversations and messages are stored in MySQL through the BFF; IndexedDB keeps a local cache and original attachments. The DeepSeek API key is no longer stored in the browser; it lives only in the BFF environment.
+Settings remain in browser localStorage. Conversations and messages are stored in MySQL through the BFF; the BFF also archives attachment originals on disk. IndexedDB keeps a local cache and a copy of originals, while other devices read archived attachments through short-lived signed URLs. The DeepSeek API key is no longer stored in the browser; it lives only in the BFF environment.
 
 Export in Settings produces a ZIP archive from the server-side conversations and locally available images. Browser-side history import is intentionally not provided: history is imported by the server CLI. Exports exclude settings and original non-image attachments. See the [history import/export documentation (Chinese)](src/services/chat/history/README.md) for the archive format and preservation details.
 
@@ -65,15 +65,24 @@ Settings → Data → Delete all chats deletes all conversations from the server
 
 ## Development
 
-| Command       | Description                  |
-| ------------- | ---------------------------- |
-| `pnpm dev`    | Start the development server |
-| `pnpm build`  | Build into `dist/`           |
-| `pnpm type`   | Run TypeScript type checks   |
-| `pnpm lint`   | Lint with oxlint             |
-| `pnpm format` | Format with oxfmt            |
+| Command           | Description                                        |
+| ----------------- | -------------------------------------------------- |
+| `pnpm dev`        | Development server (local addresses + proxy)       |
+| `pnpm build`      | Production build into `dist/` (chat./api. domains) |
+| `pnpm build:prod` | Explicit production build, same as `pnpm build`    |
+| `pnpm build:dev`  | Development-address bundle for LAN testing         |
+| `pnpm type`       | Run TypeScript type checks                         |
+| `pnpm lint`       | Lint with oxlint                                   |
+| `pnpm format`     | Format with oxfmt                                  |
 
-[rspack.config.ts](rspack.config.ts) defaults to `__AUTH_BASE__ = /auth` and `__BFF_BASE__ = /v1`, both same-origin. Use `createConfig({ authBase, bffBase, devServer })` to customize them. The development server proxies `/auth`, `/v1`, and `/api` to `http://127.0.0.1:3000`.
+Environment addresses live in [config/env.ts](config/env.ts). Development serves the app at
+`http://localhost:8090` and reaches the backend at `http://127.0.0.1:3000` through same-origin
+`/auth` and `/v1` prefixes proxied by the dev server. Production serves
+`https://chat.shunkai-dg.cn` and calls `https://api.shunkai-dg.cn` directly as a cross-origin
+API with credentials. Override domains, ports and the proxy target with `APP_ENV`, `WEB_ORIGIN`,
+`API_ORIGIN`, `AUTH_BASE`, `BFF_BASE`, `DEV_API_TARGET` and friends — real environment variables or
+`.env.<APP_ENV>` files (see [.env.example](.env.example)). Every build prints the addresses it
+resolved. Details in [docs/环境与部署.md](docs/环境与部署.md).
 
 Chat uses `deepseek-flash` by default through Anthropic-compatible Messages / Files APIs. Speech features use ASR / TTS endpoints. Requests include extensions for search, link reading, titles, and `latest_reminder`, so the configured service must support the corresponding capabilities. Supported attachment formats are determined by server-side validation.
 

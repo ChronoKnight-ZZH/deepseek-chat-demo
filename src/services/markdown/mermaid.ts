@@ -83,7 +83,8 @@ export const renderMermaid = (
     try {
       const { svg } = await mermaid.render(`standalone-mermaid-${nextId++}`, prepared.code)
       if (!silent && !isCancelled()) {
-        const skipped = prepared.removed > 0 ? `, skipped ${prepared.removed} placeholder line(s)` : ''
+        const skipped =
+          prepared.removed > 0 ? `, skipped ${prepared.removed} placeholder line(s)` : ''
         pushMermaidLog({
           action: 'render',
           target: 'render',

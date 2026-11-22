@@ -28,9 +28,7 @@ export const MermaidLogDialog = () => {
       title={
         <span className={styles.title}>
           {t('mermaidLogTitle')}
-          <span className={styles.count}>
-            {t('mermaidLogCount', { count: entries.length })}
-          </span>
+          <span className={styles.count}>{t('mermaidLogCount', { count: entries.length })}</span>
         </span>
       }
       closable

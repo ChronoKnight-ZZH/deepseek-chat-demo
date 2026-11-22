@@ -2,6 +2,10 @@
 
 chat-demo 使用 `export_format_version: 3` 的历史会话 ZIP，导出文件名为 `deepseek_data-日期.zip`。字段定义见 [format.ts](./format.ts)，实际校验规则见 [schema.ts](./schema.ts)。
 
+> 浏览器端不再提供导入。历史统一由服务端 CLI 导入：
+> `npm run import:history -- --user <用户名> --file <zip>`（详见 `auth-demo/README.md`）。
+> 服务端导入会把 ZIP 内图片直接归档为 `storageId`，其他设备打开会话即可显示。
+
 ## 归档结构
 
 导出按以下顺序写入：

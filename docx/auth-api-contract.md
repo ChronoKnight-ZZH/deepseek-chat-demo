@@ -325,5 +325,25 @@ data: {"requestId":"...","status":"done","finishReason":"end_turn","code":null}
 
 ### 4.9 下一阶段
 
-- 历史 ZIP 的云端 CLI 导入
 - 服务端缩略图、物理 blob GC、病毒扫描
+- 超大历史归档的流式导入与断点续传
+
+## 5. 运维 CLI（非 HTTP）
+
+账号由管理员在服务器上预置，不开放注册；历史只能由服务端 CLI 导入。
+
+```bash
+node scripts/admin.js list
+node scripts/admin.js create --username alice
+node scripts/admin.js lock --username alice
+node scripts/admin.js unlock --username alice
+node scripts/admin.js reset-password --username alice
+
+node scripts/import-history.js --user alice --file deepseek_data-2026-11-22.zip
+node scripts/import-history.js --user alice --file backup.zip --dry-run
+```
+
+- 锁定/重置密码会递增 `credential_version` 并写穿 Redis，旧 Bearer Token 立即失效。
+- 导入默认跳过已存在的会话 id；`--replace` 覆盖同 id 会话。
+- 每次正式导入写入 `import_jobs`（执行者、来源、sha256、统计、失败原因）；`--dry-run` 不写库。
+- 导入的图片直接写入 `storageId`；首次发送时前端从 BFF 取回原件再上传上游。

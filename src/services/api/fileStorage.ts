@@ -1,3 +1,4 @@
+import { API_CREDENTIALS } from '../env.js'
 import { BFF_BASE, request } from './client.js'
 
 /** 服务端原件元数据 */
@@ -109,4 +110,20 @@ export const getSignedUrls = (
 /** 会话被删除或票据失效时清掉对应缓存 */
 export const forgetSignedUrls = (fileId: string, sessionId: string) => {
   urlCache.delete(cacheKey(fileId, sessionId))
+}
+
+/**
+ * 本地没有原件、但服务端已归档时，取回原始字节。
+ * 用于导入的历史图片：首次发送前需要把原件送上游 Files API。
+ */
+export const downloadOriginal = async (fileId: string, sessionId: string): Promise<Blob> => {
+  const set = await getSignedUrls(fileId, sessionId)
+  const response = await fetch(contentUrl(set.urls.r, fileId, 'r'), {
+    credentials: API_CREDENTIALS,
+    cache: 'no-store',
+  })
+  if (!response.ok) {
+    throw new Error(`download original failed: ${response.status}`)
+  }
+  return response.blob()
 }

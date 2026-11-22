@@ -100,7 +100,7 @@
 src/
 ├ main.tsx                  应用入口
 ├ index.html                HTML 模板（含应用根目录推导内联脚本）
-├ env.d.ts                  全局类型声明（构建注入变量 __APP_ENV__ / __WEB_ORIGIN__ / __API_ORIGIN__ / __AUTH_BASE__ / __BFF_BASE__ / __API_CREDENTIALS__）
+├ env.d.ts                  全局类型声明（构建注入变量 __API_ORIGIN__）
 ├ app/                      应用布局、主题、全局样式、移动端视口
 ├ components/               UI 组件（按功能域分目录，见第 7 节）
 ├ i18n/                     中英翻译（index.ts 运行时，en.ts / zh.ts 词条）
@@ -260,7 +260,7 @@ WHATWG 规范的 SSE 解析器，不依赖 `EventSource`（因为需要自定义
 
 #### `types.ts`（数据模型）
 
-- `FileAttachment`：`id`（本地主键，IndexedDB files 表）/ `serverId`（Files API 的 file_id，可为 null）/ `name` / `size` / `isImage` / `mimeType`。
+- `FileAttachment`：`id`（本地主键，IndexedDB files 表）/ `serverId`（Files API 的 file_id，可为 null）/ `storageId`（BFF 归档的原件 id，可为 null；其他设备靠它换短期签名地址）/ `name` / `size` / `isImage` / `mimeType`。
 - `MessageBranch`：`parentId?` / `selectedChildId?`，缺省按线性列表处理。
 - `UserMessage`：content + files + createdAt。
 - `AssistantMessage`：model / thinking / search / latestReminder 快照 / `prefix`（可否作续写前缀）/ `status`（`pending|streaming|done|stopped|error`）/ `blocks`（`ThinkingPart|TextPart|ServerToolBlock`）/ stopReason / stopDetails / usage / error。
@@ -551,7 +551,8 @@ settleReply (chat/reply.ts)          结束收尾（done/stopped/error/refusal�
 | `commitStaging()`                        | `chat/db.ts`            | 暂存 → 正式数据同事务替换                       |
 | `bindSessionUrl()`                       | `chat/route.ts`         | 会话 ↔ 地址栏双向同步                           |
 | `classifyApiError / getFileErrorCode`    | `api/errors.ts`         | 错误分类 / 附件失效识别                         |
-| `uploadAttachment / cancelUpload`        | `attachments.ts`        | 排队上传（并发 3）/ 取消                        |
+| `uploadAttachment / cancelUpload`        | `attachments.ts`        | 排队上传（并发 3）/ 取消；同时归档原件到 BFF    |
+| `getSignedUrls / contentUrl`             | `api/fileStorage.ts`    | 本地无原件时换取短期票据并拼出同源读取地址      |
 | `useChatStore`                           | `chat/store.ts`         | 会话领域 Zustand store                          |
 | `useTheme / setupTheme`                  | `app/theme.ts`          | 主题 Hook 与初始化                              |
 | `bindChatPersistence`                    | `chat/store.ts`         | 页面隐藏前落盘                                  |
@@ -606,38 +607,42 @@ chat/view     →  api/types, chat/types   （纯计算）
 
 需 Node.js 22.12+ 与 pnpm。
 
-| 命令           | 说明                                                           |
-| -------------- | -------------------------------------------------------------- |
-| `pnpm install` | 安装依赖                                                       |
-| `pnpm dev`     | 启动 dev server（`rspack serve`），端口 8090，SPA history 回退 |
-| `pnpm build`   | 生产构建到 `dist/`                                             |
-| `pnpm type`    | `tsc` 类型检查（`noEmit`）                                     |
-| `pnpm lint`    | oxlint 检查 `src` 与配置                                       |
-| `pnpm format`  | oxfmt 格式化                                                   |
+| 命令              | 说明                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `pnpm install`    | 安装依赖                                                                           |
+| `pnpm dev`        | 启动 dev server（`rspack serve`），端口 8090，SPA history 回退，接口代理到本地后端 |
+| `pnpm build`      | 生产构建到 `dist/`（chat./api. 域名）                                              |
+| `pnpm build:prod` | 显式生产构建（`--node-env production`）                                            |
+| `pnpm build:dev`  | 本地地址开发包（内网联调）                                                         |
+| `pnpm type`       | `tsc` 类型检查（`noEmit`）                                                         |
+| `pnpm lint`       | oxlint 检查 `src`、`config` 与配置                                                 |
+| `pnpm format`     | oxfmt 格式化                                                                       |
 
 ### 11.2 `rspack.config.ts` / `config/env.ts` 要点
 
-- `config/env.ts` 定义两套运行环境地址：开发 `WEB_ORIGIN=http://localhost:8090` + 后端
-  `http://127.0.0.1:3000`（同源前缀 `/auth`、`/v1`，devServer 代理）；生产
-  `WEB_ORIGIN=https://chat.shunkai-dg.cn`、`AUTH_BASE=https://api.shunkai-dg.cn/auth`、
-  `BFF_BASE=https://api.shunkai-dg.cn/v1`（跨域直连，credentials=include）。
-  环境名按 `APP_ENV` → `NODE_ENV` → `.env` 解析，地址可用环境变量 / `.env.<APP_ENV>` 覆盖
-  （见 `.env.example`、[docs/环境与部署.md](docs/环境与部署.md)）。
+- `config/env.ts` 集中定义开发/生产两套地址：开发 `WEB_ORIGIN=http://localhost:8090`，后端
+  `http://127.0.0.1:3000`（同源前缀 `/auth`、`/v1` + devServer 代理）；生产
+  `WEB_ORIGIN=https://chat.shunkai-dg.cn`，`AUTH_BASE=https://api.shunkai-dg.cn/auth`，
+  `BFF_BASE=https://api.shunkai-dg.cn/v1`。环境名按 `APP_ENV` → `NODE_ENV` → `.env` 的
+  `APP_ENV` 解析；地址可被环境变量或 `.env.<APP_ENV>` 覆盖（见 `.env.example`、
+  [docs/环境与部署.md](环境与部署.md)）。
 - 导出 `createConfig({ env?, basePath?, devServer? })` 工厂，默认导出其调用结果；构建时打印生效地址。
 - `entry: ./src/main.tsx`；`output.publicPath: 'auto'`（按脚本地址推导，支持 `file://` 下异步 chunk 与字体相对加载）。
 - CSS Modules 用默认导出（`namedExports: false`），类名 `[local]-[hash:6]`；CSS 经 `lightningcss-loader` 按浏览器目标压缩。
 - TS/TSX 用 `builtin:swc-loader`（React automatic runtime，external helpers）。
 - 插件：`HtmlRspackPlugin`（`scriptLoading: 'defer'`，注入 `application-version` meta 与 `appBasePath` 模板参数）、`DefinePlugin`（`__APP_ENV__` / `__WEB_ORIGIN__` / `__API_ORIGIN__` / `__AUTH_BASE__` / `__BFF_BASE__` / `__API_CREDENTIALS__`）、`CopyRspackPlugin`（拷贝 LICENSE 到 dist）。
-- 前端读取入口 `src/services/env.ts`；`services/api/auth.ts`、`client.ts` 用它决定 `fetch` 的 `credentials`。
+- 前端读取入口：`src/services/env.ts`（`APP_ENV` / `WEB_ORIGIN` / `API_CREDENTIALS` / `appUrl()`），请求层用它决定 `fetch` 的 `credentials`。
 - `devtool`: dev 用 `cheap-module-source-map`，生产关闭；`lazyCompilation: false`（预编译异步模块，保持首次加载代码高亮 / 公式时的页面状态）。
 - `devServer`: 端口 `DEV_PORT`（默认 8090），`historyApiFallback: true`；开发环境按接口前缀代理到 `DEV_API_TARGET`。
 
 ### 11.3 部署注意事项
 
-- 生产前后端分域：`api.shunkai-dg.cn` 需回 `Access-Control-Allow-Origin: https://chat.shunkai-dg.cn`（不能 `*`）+ `Allow-Credentials: true`，并放行 `Authorization`、`Content-Type`、`Accept`、`X-Request-Id`、`X-File-Name`、`X-File-Mime` 预检。
-- 同源反代部署（前端 Nginx 转发 `/v1`、`/auth`）要用 `BFF_BASE=/v1`、`AUTH_BASE=/auth` 重新构建。
+- 生产前后端分域（`chat.` / `api.`）：`api.shunkai-dg.cn` 需回 `Access-Control-Allow-Origin: https://chat.shunkai-dg.cn`（不能是 `*`）和 `Access-Control-Allow-Credentials: true`，并放行 `Authorization`、`Content-Type`、`Accept`、`X-Request-Id`、`X-File-Name`、`X-File-Mime` 的预检。
+- `<img>` 直连的 `/v1/files/content` 签名地址属于跨域子资源：需要画进 canvas（导出 ZIP、Mermaid 导出）时响应必须带 CORS 头。
+- 同源反代部署（前端 Nginx 转发 `/v1`、`/auth` 到后端）要用 `BFF_BASE=/v1`、`AUTH_BASE=/auth` 重新构建，否则浏览器仍打 api 域名。
+- SSE 续推 `GET /v1/chat/stream` 要求反代关闭缓冲并放宽读超时（nginx `proxy_buffering off; proxy_read_timeout 3600s;`）。
 - 会话地址是真实路径 `/chat/<id>`，服务器需配置回退到 `index.html`（nginx `try_files $uri $uri/ /index.html;`，Caddy `try_files {path} /index.html`），否则刷新 / 直链 404。
-- 子目录部署无需额外配置：`index.html` 内联脚本会推导应用根目录写入 `<base>`，资源与会话 URL 自动加前缀。
+- 子目录部署无需额外配置：`index.html` 内联脚本会推导应用根目录写入 `<base>`，资源与会话 URL 自动加前缀（或用 `BASE_PATH=/app/` 兜底）。
 - 直接打开 `dist/index.html`（`file://`）可用，但要求浏览器支持 `file://` 页面的存储，且 API 服务允许其跨域请求。
 - 构建产物包含 `dist/LICENSE`，分发时需保留。
 
@@ -689,11 +694,12 @@ chat/view     →  api/types, chat/types   （纯计算）
        └ streamReply(sessionId, reply, {history, question})
 ```
 
-### 13.2 附件 serverId 补齐（`prepareFiles`）
+### 13.2 附件上传与原件归档（`prepareFiles`）
 
-- 本轮提问附件并行 `ensureServerId`：已有 serverId 直接用；正在上传等任务；否则读 IndexedDB 原件补传。任一失败整体失败（回复记 `upload` 错误，可重试）。
+- 本轮提问附件并行 `ensureUpload`：已有 serverId 直接用；正在上传等任务；否则读 IndexedDB 原件补传。本地没有原件但消息带 `storageId`（服务端导入的历史图片）时，先从 BFF 取回原件再上传上游。任一失败整体失败（回复记 `upload` 错误，可重试）。
+- 上传时同时请求上游 Files API（对话上下文必需）与 BFF `/v1/files/originals`（跨设备归档）；归档失败不阻塞对话。
 - 历史轮次（进入上下文的）中缺 serverId 的附件（多为导入图片）从最新往前逐张补传，失败静默跳过（该附件不进本次请求，下次再试）。
-- 成功的 serverId 通过 `saveServerIds` 写回会话中所有引用同一附件的消息（编辑 / 重新生成共用附件）。
+- 成功的 serverId 与 storageId 通过 `saveUploadResults` 写回会话中所有引用同一附件的消息（编辑 / 重新生成共用附件）；已有 serverId 但缺 storageId 的旧数据在 `archiveOriginals` 中只补传原件。
 
 ### 13.3 流式回复（`streamReply`）
 

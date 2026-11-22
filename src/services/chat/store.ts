@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
 import { ApiError, stopChat, streamChat } from '../api/client.js'
+import { downloadOriginal } from '../api/fileStorage.js'
 import {
   deleteSession as deleteSessionApi,
   getSession as getSessionApi,
@@ -981,9 +982,11 @@ const saveUploadResults = (
 
 /**
  * 附件的服务端 id：已有直接用；正在上传的等待同一任务；否则读取本地原件补传。
- * 本地也没有原件（导入的文档附件只有元数据）时返回 null，该附件只展示、不进入请求。
+ * 本地也没有原件时，如果服务端已归档（导入的历史图片），先取回原件再上传上游。
+ * 两边都没有（导入的文档附件只有元数据）时返回 null，该附件只展示、不进入请求。
  */
 const ensureUpload = async (
+  sessionId: string,
   file: FileAttachment
 ): Promise<{ serverId: string; storageId: string | null } | null> => {
   if (file.serverId) {
@@ -993,7 +996,10 @@ const ensureUpload = async (
   if (task?.status === 'done') {
     return task
   }
-  const blob = await db.loadFile(file.id)
+  let blob = await db.loadFile(file.id)
+  if (!blob && file.storageId) {
+    blob = await downloadOriginal(file.storageId, sessionId).catch(() => undefined)
+  }
   if (!blob) {
     return null
   }
@@ -1034,7 +1040,7 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   })
   const uploads = Promise.allSettled(
     request.question.files.map(async (file) => {
-      const result = await ensureUpload(file)
+      const result = await ensureUpload(sessionId, file)
       if (result) {
         uploaded.set(file.id, result)
       }
@@ -1062,7 +1068,7 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   for (const file of pending.values()) {
     signal.throwIfAborted()
     try {
-      const result = await Promise.race([ensureUpload(file), aborted])
+      const result = await Promise.race([ensureUpload(sessionId, file), aborted])
       if (result) {
         uploaded.set(file.id, result)
         saveUploadResults(sessionId, new Map([[file.id, result]]))

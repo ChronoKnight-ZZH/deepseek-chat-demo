@@ -112,6 +112,7 @@ src/
 │  ├ settings.ts            设置 store（localStorage 持久化）
 │  ├ auth.ts                登录态 store（localStorage 持久化）
 │  ├ attachments.ts         附件上传任务 store 与校验
+│  ├ filePreview.ts         附件文本预览（本地原件优先，回退 p 票据）
 │  ├ location.ts            位置数据模型与归一化
 │  ├ locationData.ts        国家 / 省市静态数据
 │  └ uploadExts.ts          允许上传的扩展名白名单
@@ -147,7 +148,7 @@ createRoot(...).render(<App />)
 
 1. **登录态分流**：未登录渲染 `<LoginPage/>`；已登录进入主布局。
 2. **布局装配**：桌面端 `<DesktopSider>` + `<main>`；移动端根据宽度在 `<PushSider>`（推开式）与 `<MobileSider>`（抽屉）间切换；主区依次渲染 `SessionView` / `Welcome` / 加载态 / 保存失败提示条。
-3. **全局浮层**：统一挂载 `<SettingsDialog>`、`<MessageSearch>`、`<MermaidLogDialog>`、`<ImageViewer>`、`<Toast>`、`<SearchPanel>`、`<HtmlPreviewPanel>`。
+3. **全局浮层**：统一挂载 `<SettingsDialog>`、`<MessageSearch>`、`<MermaidLogDialog>`、`<ImageViewer>`、`<FilePreviewDialog>`、`<Toast>`、`<SearchPanel>`、`<HtmlPreviewPanel>`。
 4. **全局副作用**（`useEffect`）：
    - `bindChatPersistence` — 页面隐藏 / 关闭前 flush 流式增量并落盘。
    - `bindSessionUrl` — 会话与地址栏双向同步。
@@ -399,6 +400,7 @@ streaming: Record<id, AbortController>
 - `settings.ts`（见第 5 节）：`DEFAULT_SYSTEM_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'`；语言默认跟随浏览器 `navigator.language`；所有 setter 双写 localStorage 与 store。
 - `auth.ts`：`signIn(account, method)` / `signOut`；`LoginMethod = 'sms'|'password'|'wechat'|'apple'`，当前仅记录来源。
 - `attachments.ts`：附件上传任务管理（见第 5 节 `useUploads`）+ 校验：`ACCEPT_FILE_EXTS` 白名单、单文件上限 64MB（user_data 类 32MB）、最多 50 个、并发 3；`getUploadPurpose` 决定 purpose（图片不传 / PDF·Word·PPT 版面解析 / 其余 user_data）；`validateFiles` 整批校验；`describeUploadError` / `describeUploadQuota` 文案；`resolveMimeType` 按扩展名补 MIME。
+- `filePreview.ts`：附件文本预览。`isTextPreviewable` 按 MIME / 扩展名判断是否值得按文本读；`loadPreviewContent` 本地 IndexedDB 原件优先，缺失时用 **p 票据**（`fetchPreviewOriginal`）取内联字节，UTF-8 解码替换字符过多时回退 GBK，嗅探到二进制则只允许下载；渲染上限 `PREVIEW_MAX_CHARS = 200000` 字符，超出截断。
 - `location.ts` / `locationData.ts`：`UserLocation`（region + 可选 province/city）模型与归一化；中国省市静态数据；`getRegionName`。
 - `uploadExts.ts`：允许上传扩展名清单（图片、文档、纯文本、代码、表格、电子书等）。
 
@@ -443,7 +445,7 @@ streaming: Record<id, AbortController>
 - `CopyButton.tsx`：复制回复文本。
 - `ReadAloudButton.tsx` + `ReadingBars.tsx`：朗读按钮与朗读中动画条。
 - `PromptNavigator.tsx`：历史提问快速跳转导航。
-- `MessageFile.tsx`：消息内附件卡片。
+- `MessageFile.tsx`：消息内附件卡片；图片点开图片查看器，文本类附件点开文本预览弹窗，其余仍按 r 票据下载。
 - `scrollContext.ts`：消息滚动上下文（避免子组件 prop drilling）。
 - `useReplyView.ts`：调用 `buildReplyView` 的 Hook，带流式刷新节流。
 
@@ -490,7 +492,7 @@ streaming: Record<id, AbortController>
 ### 7.9 其他组件目录
 
 - `login/`：`LoginPage` 登录页 + `LoginIcons`（DeepSeek / 微信 Logo）+ `QrPlaceholder` 二维码占位。
-- `files/`：`FileCard` 附件卡片 + `FileIcon` 按扩展名显示文件类型图标。
+- `files/`：`FileCard` 附件卡片 + `FileIcon` 按扩展名显示文件类型图标 + `FilePreviewDialog` 附件文本预览弹窗（`filePreviewState` 开关，复制 / 下载）。
 - `htmlPreview/`：`HtmlPreviewPanel` HTML 预览面板 + `htmlPreviewState`（用于预览模型生成的 HTML 内容）。
 - `messageSearch/`：`MessageSearch` 跨会话全文搜索弹层（Ctrl/Cmd+K）+ `messageSearchState`。
 
@@ -553,6 +555,7 @@ settleReply (chat/reply.ts)          结束收尾（done/stopped/error/refusal�
 | `classifyApiError / getFileErrorCode`    | `api/errors.ts`         | 错误分类 / 附件失效识别                         |
 | `uploadAttachment / cancelUpload`        | `attachments.ts`        | 排队上传（并发 3）/ 取消；同时归档原件到 BFF    |
 | `getSignedUrls / contentUrl`             | `api/fileStorage.ts`    | 本地无原件时换取短期票据并拼出同源读取地址      |
+| `loadPreviewContent / isTextPreviewable` | `filePreview.ts`        | 附件文本预览：本地原件优先，回退 p 票据         |
 | `useChatStore`                           | `chat/store.ts`         | 会话领域 Zustand store                          |
 | `useTheme / setupTheme`                  | `app/theme.ts`          | 主题 Hook 与初始化                              |
 | `bindChatPersistence`                    | `chat/store.ts`         | 页面隐藏前落盘                                  |

@@ -13,7 +13,7 @@ export type StoredFile = {
 }
 
 export type FileUrlSet = {
-  /** t：缩略图位置（当前回退为原图）；p：原图内联；r：下载 */
+  /** t：缩略图位置（当前回退为原图）；p：内联预览（图片原图 / 文件文本）；r：下载 */
   urls: { t: string; p: string; r: string }
   expiresAt: number
   mime: string
@@ -124,6 +124,26 @@ export const downloadOriginal = async (fileId: string, sessionId: string): Promi
   })
   if (!response.ok) {
     throw new Error(`download original failed: ${response.status}`)
+  }
+  return response.blob()
+}
+
+/**
+ * 预览原件：走 p 票据（内联），取回字节后由前端按文本展示，不触发浏览器下载。
+ * 与 downloadOriginal 的区别只在票据类型：r 票据会被服务端强制成 attachment。
+ */
+export const fetchPreviewOriginal = async (
+  fileId: string,
+  sessionId: string,
+  { force = false }: { force?: boolean } = {}
+): Promise<Blob> => {
+  const set = await getSignedUrls(fileId, sessionId, { force })
+  const response = await fetch(contentUrl(set.urls.p, fileId, 'p'), {
+    credentials: API_CREDENTIALS,
+    cache: 'no-store',
+  })
+  if (!response.ok) {
+    throw new Error(`preview original failed: ${response.status}`)
   }
   return response.blob()
 }

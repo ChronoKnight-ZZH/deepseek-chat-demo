@@ -5,10 +5,12 @@ import { contentUrl, getSignedUrls, type FileUrlSet } from '../../services/api/f
 import { useUploads } from '../../services/attachments.js'
 import { loadFile } from '../../services/chat/db.js'
 import type { FileAttachment } from '../../services/chat/types.js'
+import { isTextPreviewable } from '../../services/filePreview.js'
 import { IconPhotoErrorFill20, IconRefreshOutline16 } from '../base/icons.js'
 import { openImageViewer } from '../base/imageViewerState.js'
 import { Tooltip } from '../base/Tooltip.js'
 import { FileCard } from '../files/FileCard.js'
+import { openFilePreview } from '../files/filePreviewState.js'
 import styles from './MessageFile.module.css'
 
 /** 原件从 IndexedDB 读出并生成本地地址；undefined 表示加载中，null 表示原件缺失。 */
@@ -234,6 +236,27 @@ export const MessageFile = ({
     )
   }
 
+  // 文本类附件点开是预览（本地原件优先，缺失时用 p 票据），其余仍走 r 票据下载
+  const previewable = isTextPreviewable(file.name, file.mimeType)
+  const hasOriginal = localUrl !== undefined && (localUrl !== null || Boolean(storageId))
+  const openable = !upload && hasOriginal && (previewable || Boolean(downloadUrl))
+  const open = () => {
+    if (previewable) {
+      openFilePreview({
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        storageId,
+        sessionId,
+        downloadUrl: downloadUrl ?? null,
+      })
+      return
+    }
+    if (downloadUrl) {
+      window.open(downloadUrl, '_blank', 'noreferrer')
+    }
+  }
+
   return (
     <FileCard
       name={file.name}
@@ -241,9 +264,7 @@ export const MessageFile = ({
       status={uploading ? 'uploading' : failed ? 'error' : 'done'}
       error={errorText}
       onRetry={retry ?? undefined}
-      onOpen={
-        downloadUrl && !upload ? () => window.open(downloadUrl, '_blank', 'noreferrer') : undefined
-      }
+      onOpen={openable ? open : undefined}
     />
   )
 }

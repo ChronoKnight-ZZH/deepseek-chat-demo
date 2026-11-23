@@ -22,6 +22,7 @@ import { MobileHeader } from '../components/session/MobileHeader.js'
 import { Welcome } from '../components/session/Welcome.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { ImageViewer } from '../components/base/ImageViewer.js'
+import { FilePreviewDialog } from '../components/files/FilePreviewDialog.js'
 import { MermaidLogDialog } from '../components/markdown/MermaidLogDialog.js'
 import { Toast } from '../components/base/Toast.js'
 import { showToast } from '../components/base/toastState.js'
@@ -211,6 +212,7 @@ export const App = () => {
       <MessageSearch />
       <MermaidLogDialog />
       <ImageViewer />
+      <FilePreviewDialog />
       <Toast />
     </>
   )

@@ -128,6 +128,12 @@ export const en = {
   settingsSystemPromptPlaceholder: 'Enter a system prompt',
   settingsSystemPromptEnable: 'Enable system prompt',
   imagePreview: 'Image preview',
+  filePreviewLoading: 'Reading file…',
+  filePreviewFailed: 'Could not read the file. Download it to view the content.',
+  filePreviewBinary: 'This file is not text and cannot be previewed. Download it to view.',
+  filePreviewEmpty: 'The file is empty.',
+  filePreviewTruncated:
+    'Large file: only the first {count} characters are previewed. Download for the full content.',
   settingDialogAsideGeneralOptionLabel: 'General',
   settingDialogAsideDataOptionLabel: 'Data',
   avatarMenuSettingsDialogThemeItemLabel: 'Theme',

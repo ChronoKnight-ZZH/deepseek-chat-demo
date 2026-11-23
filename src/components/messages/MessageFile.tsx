@@ -5,12 +5,13 @@ import { contentUrl, getSignedUrls, type FileUrlSet } from '../../services/api/f
 import { useUploads } from '../../services/attachments.js'
 import { loadFile } from '../../services/chat/db.js'
 import type { FileAttachment } from '../../services/chat/types.js'
-import { isTextPreviewable } from '../../services/filePreview.js'
+import { isPreviewableFile } from '../../services/filePreview.js'
 import { IconPhotoErrorFill20, IconRefreshOutline16 } from '../base/icons.js'
 import { openImageViewer } from '../base/imageViewerState.js'
 import { Tooltip } from '../base/Tooltip.js'
 import { FileCard } from '../files/FileCard.js'
-import { openFilePreview } from '../files/filePreviewState.js'
+import { requestFileDownload } from '../files/fileDownloadState.js'
+import { openFilePreview } from '../sidePanel/sidePanelState.js'
 import styles from './MessageFile.module.css'
 
 /** 原件从 IndexedDB 读出并生成本地地址；undefined 表示加载中，null 表示原件缺失。 */
@@ -236,8 +237,9 @@ export const MessageFile = ({
     )
   }
 
-  // 文本类附件点开是预览（本地原件优先，缺失时用 p 票据），其余仍走 r 票据下载
-  const previewable = isTextPreviewable(file.name, file.mimeType)
+  // 文本与 PDF 在右侧面板预览（本地原件优先，缺失时用 p 票据）；
+  // 其余类型先弹窗确认，确认后再用 r 票据下载
+  const previewable = isPreviewableFile(file.name, file.mimeType)
   const hasOriginal = localUrl !== undefined && (localUrl !== null || Boolean(storageId))
   const openable = !upload && hasOriginal && (previewable || Boolean(downloadUrl))
   const open = () => {
@@ -246,6 +248,7 @@ export const MessageFile = ({
         id: file.id,
         name: file.name,
         size: file.size,
+        mimeType: file.mimeType,
         storageId,
         sessionId,
         downloadUrl: downloadUrl ?? null,
@@ -253,7 +256,7 @@ export const MessageFile = ({
       return
     }
     if (downloadUrl) {
-      window.open(downloadUrl, '_blank', 'noreferrer')
+      requestFileDownload({ name: file.name, blob: null, url: downloadUrl })
     }
   }
 

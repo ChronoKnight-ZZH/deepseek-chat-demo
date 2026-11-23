@@ -16,13 +16,14 @@ import { bindSessionUrl } from '../services/chat/route.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
 import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { HtmlPreviewPanel } from '../components/htmlPreview/HtmlPreviewPanel.js'
-import { closeHtmlPreview } from '../components/htmlPreview/htmlPreviewState.js'
+import { closeSidePanel } from '../components/sidePanel/sidePanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
 import { Welcome } from '../components/session/Welcome.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { ImageViewer } from '../components/base/ImageViewer.js'
-import { FilePreviewDialog } from '../components/files/FilePreviewDialog.js'
+import { FileDownloadDialog } from '../components/files/FileDownloadDialog.js'
+import { FilePreviewPanel } from '../components/files/FilePreviewPanel.js'
 import { MermaidLogDialog } from '../components/markdown/MermaidLogDialog.js'
 import { Toast } from '../components/base/Toast.js'
 import { showToast } from '../components/base/toastState.js'
@@ -105,12 +106,12 @@ export const App = () => {
 
   // 搜索结果面板只属于当前会话
   useEffect(closeSearchPanel, [activeId])
-  // HTML 预览也跟随所属会话
-  useEffect(closeHtmlPreview, [activeId])
+  // 右侧预览（HTML / 文件）跟随所属会话
+  useEffect(closeSidePanel, [activeId])
   // 左侧边栏展开时收起右侧预览，两者互斥
   useEffect(() => {
     if (isMobile ? mobileSiderOpen : !siderSettingCollapsed) {
-      closeHtmlPreview()
+      closeSidePanel()
     }
   }, [isMobile, mobileSiderOpen, siderSettingCollapsed])
   // 切换会话时停止朗读
@@ -207,12 +208,13 @@ export const App = () => {
         </main>
         <SearchPanel />
         <HtmlPreviewPanel />
+        <FilePreviewPanel />
       </div>
       <SettingsDialog />
       <MessageSearch />
       <MermaidLogDialog />
       <ImageViewer />
-      <FilePreviewDialog />
+      <FileDownloadDialog />
       <Toast />
     </>
   )

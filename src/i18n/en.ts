@@ -135,12 +135,17 @@ export const en = {
   settingsSystemPromptPlaceholder: 'Enter a system prompt',
   settingsSystemPromptEnable: 'Enable system prompt',
   imagePreview: 'Image preview',
+  filePreview: 'File preview',
+  sidePanelResize: 'Resize preview',
   filePreviewLoading: 'Reading file…',
   filePreviewFailed: 'Could not read the file. Download it to view the content.',
-  filePreviewBinary: 'This file is not text and cannot be previewed. Download it to view.',
+  filePreviewBinary: 'This file cannot be previewed. Download it to view the content.',
   filePreviewEmpty: 'The file is empty.',
   filePreviewTruncated:
     'Large file: only the first {count} characters are previewed. Download for the full content.',
+  fileDownloadTitle: 'Download file',
+  fileDownloadDescription:
+    '“{name}” cannot be previewed. Download it to view the content on your device?',
   settingDialogAsideGeneralOptionLabel: 'General',
   settingDialogAsideDataOptionLabel: 'Data',
   avatarMenuSettingsDialogThemeItemLabel: 'Theme',

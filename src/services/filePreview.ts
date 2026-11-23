@@ -11,18 +11,20 @@ export type FilePreviewTarget = {
   id: string
   name: string
   size: number
+  /** 原始 MIME，用于区分文本与 PDF */
+  mimeType: string
   storageId: string | null
   sessionId: string
   /** 下载地址（本地 blob 地址或 r 票据）：读不到原件时兜底 */
   downloadUrl: string | null
 }
 
-/** 读到的原件：binary 表示不是文本，只能下载 */
+/** 读到的原件：kind 为 binary 时不是文本/PDF，只能下载 */
 export type PreviewContent = {
   blob: Blob
+  kind: 'text' | 'pdf' | 'binary'
   text: string
   truncated: boolean
-  binary: boolean
 }
 
 /** 明确的非文本 MIME：这些类型有内容也不是可读文本 */
@@ -73,6 +75,10 @@ const BINARY_EXTS = new Set([
   'OTF',
 ])
 
+/** PDF 由浏览器内置阅读器渲染，不再当作文本解码 */
+export const isPdfPreviewable = (name: string, mimeType: string): boolean =>
+  mimeType.toLowerCase() === 'application/pdf' || getExtension(name) === 'PDF'
+
 /**
  * 是否值得按文本预览：MIME 可信时直接判定，缺失或为 octet-stream 时按扩展名兜底。
  * 判错的二进制文件仍会在读取后被嗅探出来，转为「只能下载」。
@@ -90,6 +96,10 @@ export const isTextPreviewable = (name: string, mimeType: string): boolean => {
   }
   return !BINARY_EXTS.has(getExtension(name))
 }
+
+/** 能否在右侧边栏预览：文本与 PDF；其余类型先确认再下载 */
+export const isPreviewableFile = (name: string, mimeType: string): boolean =>
+  isPdfPreviewable(name, mimeType) || isTextPreviewable(name, mimeType)
 
 /** 替换字符占比：用于判断编码是否猜错 */
 const replacementRatio = (text: string) => {
@@ -151,8 +161,9 @@ const fetchPreviewWithRetry = async (fileId: string, sessionId: string) => {
 }
 
 /**
- * 读取原件文本：本地 IndexedDB 优先，本地缺失时用 p 票据向服务端取内联字节。
- * 原件不存在或读取失败时抛错，由预览弹窗显示失败并提供下载兜底。
+ * 读取原件内容：本地 IndexedDB 优先，本地缺失时用 p 票据向服务端取内联字节。
+ * PDF 原样返回字节交给浏览器阅读器；文本按编码嗅探，二进制转为「只能下载」。
+ * 原件不存在或读取失败时抛错，由预览面板显示失败并提供下载兜底。
  */
 export const loadPreviewContent = async (target: FilePreviewTarget): Promise<PreviewContent> => {
   const storageId = target.storageId
@@ -162,12 +173,17 @@ export const loadPreviewContent = async (target: FilePreviewTarget): Promise<Pre
   if (!blob) {
     throw new Error('original missing')
   }
+  if (isPdfPreviewable(target.name, target.mimeType)) {
+    return { blob, kind: 'pdf', text: '', truncated: false }
+  }
   const decoded = decodeText(await blob.arrayBuffer())
-  const binary = looksBinary(decoded)
+  if (looksBinary(decoded)) {
+    return { blob, kind: 'binary', text: '', truncated: false }
+  }
   return {
     blob,
-    binary,
-    text: binary ? '' : decoded.slice(0, PREVIEW_MAX_CHARS),
-    truncated: !binary && decoded.length > PREVIEW_MAX_CHARS,
+    kind: 'text',
+    text: decoded.slice(0, PREVIEW_MAX_CHARS),
+    truncated: decoded.length > PREVIEW_MAX_CHARS,
   }
 }

@@ -289,8 +289,9 @@ data: {"requestId":"...","status":"done","finishReason":"end_turn","code":null}
 - 仅软删除元数据；物理 blob 由后续 GC 任务回收。
 
 前端策略：图片优先读本地 IndexedDB 原件；本地缺失且消息带 `storageId` 时，
-用上述接口换短期地址显示/下载，避免浏览器保存任何上游 Key。文本类附件点击后用 `p` 票据
-取回字节，在页面弹窗内按文本预览；`r` 只用于下载。
+用上述接口换短期地址显示/下载，避免浏览器保存任何上游 Key。文本与 PDF 附件点击后用 `p` 票据
+取回字节，在右侧边栏预览（文本按编码嗅探展示，PDF 交浏览器阅读器）；其余类型需确认后
+用 `r` 票据下载。
 
 ### 4.6 `POST /v1/tools/asr` / `POST /v1/tools/tts`
 

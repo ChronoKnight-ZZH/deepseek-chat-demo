@@ -28,7 +28,7 @@ import { Menu } from '../base/Menu.js'
 import { showToast } from '../base/toastState.js'
 import { copyText } from '../../utils/clipboard.js'
 import { downloadCode } from '../../utils/html.js'
-import { openHtmlPreview } from '../htmlPreview/htmlPreviewState.js'
+import { openHtmlPreview } from '../sidePanel/sidePanelState.js'
 import {
   hasMermaidError,
   openMermaidLog,

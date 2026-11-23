@@ -1,0 +1,54 @@
+.textWrap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.text {
+  flex: 1;
+  margin: 0;
+  overflow: auto;
+  padding: 16px 20px;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--ds-font-family-code);
+  font-size: 13px;
+  line-height: 22px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  tab-size: 4;
+}
+
+.truncated {
+  flex-shrink: 0;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-caption);
+  background: var(--dsw-alias-markdown-placeholder);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.pdf {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: none;
+  background: var(--dsw-alias-bg-base);
+}
+
+.hint {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  color: var(--dsw-alias-label-caption);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}

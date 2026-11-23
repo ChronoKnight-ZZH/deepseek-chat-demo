@@ -1,12 +1,6 @@
 import clsx from 'clsx'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
-import {
-  IconGlobeLanguageOutline14,
-  IconPaperclipOutline16,
-  IconSendOutline16,
-  IconStopFill16,
-  IconThinkOutline14,
-} from '../base/icons.js'
+import { IconPaperclipOutline16, IconSendOutline16, IconStopFill16 } from '../base/icons.js'
 import { setSearch, setThinking, useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
@@ -32,6 +26,7 @@ import { VoiceButton } from './VoiceButton.js'
 import { Spectrum } from './Spectrum.js'
 import { useTranslate } from '../../i18n/index.js'
 import { ModelSelect } from './ModelSelect.js'
+import { SearchToggleIcon, ThinkingToggleIcon, useToggleAnimation } from './ToggleIcons.js'
 import styles from './ChatInput.module.css'
 
 /** 输入框：自适应高度的文本框 + 文件 + 深度思考与智能搜索开关 + 语音输入 + 发送 / 停止 */
@@ -54,6 +49,9 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const isMobile = useIsMobile()
   const search = useSettings((state) => state.search)
   const model = useSettings((state) => state.model)
+  // 动画由真实开关状态驱动：开启正向、关闭反向，避免点击与状态不同步。
+  const thinkingRun = useToggleAnimation(thinking)
+  const searchRun = useToggleAnimation(search)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const togglesRef = useRef<HTMLDivElement>(null)
@@ -213,7 +211,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
               aria-pressed={thinking}
               onClick={() => setThinking(!thinking)}
             >
-              <IconThinkOutline14 />
+              <ThinkingToggleIcon run={thinkingRun} />
               <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
             </button>
           </Tooltip>
@@ -225,7 +223,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
               aria-pressed={search}
               onClick={() => setSearch(!search)}
             >
-              <IconGlobeLanguageOutline14 />
+              <SearchToggleIcon run={searchRun} />
               <span className={styles.toggleLabel}>{t('search')}</span>
             </button>
           </Tooltip>

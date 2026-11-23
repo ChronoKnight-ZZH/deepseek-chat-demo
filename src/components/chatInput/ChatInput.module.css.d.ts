@@ -19,6 +19,7 @@ declare const styles: {
   readonly selected: string
   readonly modelToggle: string
   readonly modelLabel: string
+  readonly modelLabelSwap: string
   readonly modelArrow: string
   readonly modelMenu: string
   readonly modelOption: string

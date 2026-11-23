@@ -3,7 +3,13 @@ import { getAuthToken, handleUnauthorized } from '../auth.js'
 import { API_CREDENTIALS } from '../env.js'
 import { readMessageEvent } from './parseEvent.js'
 import { readServerSentEvents } from './sse.js'
-import type { CreateMessageRequest, FileObject, FilePurpose, MessageStreamEvent } from './types.js'
+import type {
+  BalanceResponse,
+  CreateMessageRequest,
+  FileObject,
+  FilePurpose,
+  MessageStreamEvent,
+} from './types.js'
 
 /** BFF 前缀：开发同源 /v1（devServer 代理），生产 https://api.shunkai-dg.cn/v1 */
 export const BFF_BASE = __BFF_BASE__.replace(/\/+$/, '')
@@ -121,6 +127,12 @@ export const request = async (path: string, init: RequestInit = {}): Promise<Res
     throw await readErrorResponse(response)
   }
   return response
+}
+
+/** GET /user/balance 查询账户余额：走本地 BFF 相对路径，鉴权由登录态携带 */
+export const fetchBalance = async (signal?: AbortSignal): Promise<BalanceResponse> => {
+  const response = await request('/user/balance', { method: 'GET', signal })
+  return (await response.json()) as BalanceResponse
 }
 
 /** 上传附件：multipart 透传到 BFF，由服务端持有上游 Key */

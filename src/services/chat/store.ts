@@ -121,7 +121,7 @@ export const useChatStore = create<ChatState>(() => ({
 const { getState: get, setState: set } = useChatStore
 
 const sortSessions = (sessions: SessionSummary[]) =>
-  [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)
+  [...sessions].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)
 
 const getSession = (id: string) => {
   const cache = get().sessionCache
@@ -134,7 +134,10 @@ const getStreamController = (id: string) => {
 }
 
 const sameSummary = (a: SessionSummary, b: SessionSummary) =>
-  a.title === b.title && a.createdAt === b.createdAt && a.updatedAt === b.updatedAt
+  a.title === b.title &&
+  a.pinned === b.pinned &&
+  a.createdAt === b.createdAt &&
+  a.updatedAt === b.updatedAt
 
 const sessionAccess = new Map<string, number>()
 const unsavedSessions = new Set<string>()
@@ -597,6 +600,24 @@ export const renameSession = (id: string, title: string) => {
   }
 }
 
+/** 置顶或取消置顶；未打开的会话只更新列表与摘要。 */
+export const setSessionPinned = (id: string, pinned: boolean) => {
+  if (get().importingHistory || deletingSessions.has(id)) {
+    return
+  }
+  if (getSession(id)) {
+    updateSession(id, (session) => ({ ...session, pinned }))
+    persist(id)
+  } else {
+    set((state) => ({
+      sessions: sortSessions(
+        state.sessions.map((session) => (session.id === id ? { ...session, pinned } : session))
+      ),
+    }))
+    void db.setSessionPinned(id, pinned).catch(db.reportStorageError('pin session'))
+  }
+}
+
 /**
  * 删除会话；本地原件仅在没有其他会话引用时清理。远端文件不删：导入、编辑、重新生成都会复用同一个附件，
  * 同一服务端文件可能被多个会话引用，不维护引用计数。
@@ -712,6 +733,7 @@ export const sendMessage = (targetSessionId: string | null) => {
     const session: Session = {
       id: createId(),
       title: '',
+      pinned: false,
       createdAt: now,
       updatedAt: now,
       messages: [],

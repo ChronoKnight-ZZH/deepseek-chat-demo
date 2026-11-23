@@ -49,11 +49,20 @@ Deploying under a subdirectory (such as `https://example.com/app/`) needs no ext
 
 ## Features
 
+- Simulated sign-in: verification code, password, and WeChat QR quick sign-in. Any non-empty input gets you in; there is no real authentication. The method and time are stored in browser localStorage, so sign-in survives reloads, and you can sign out in Settings.
+- Pinned conversations: pin or unpin from the conversation menu. Pinned conversations get their own group at the top of the sidebar; the rest are grouped into today, yesterday, last 7 days, last 30 days, and by month.
+- Model selection: switch between DeepSeek Flash and DeepSeek V4 Pro from the input box, with each model's strengths shown in the menu. The choice is saved locally.
+- Conversation search: click the search button in the sidebar or press Ctrl/Cmd + K to search all local conversations with highlighted keywords; use the arrow keys to select a hit and Enter to jump to the message. Search waits for a pause in typing instead of scanning on every keystroke.
 - Multiple conversations with automatic titles, renaming, and deletion; edit prompts, regenerate replies, and switch between message branches.
-- Streaming replies with a choice of DeepSeek Flash and DeepSeek V4 Pro models, deep thinking, smart search, link reading, and source citations; stop generation or continue eligible replies.
+- Streaming replies with deep thinking, smart search, link reading, and source citations; stop generation or continue eligible replies.
 - Upload, paste, or drag and drop attachments; use voice input and read replies aloud. A live audio spectrum appears in the first row of the input area while recording on mobile.
-- Markdown, syntax highlighting, KaTeX math, and Mermaid diagrams.
+- Markdown, syntax highlighting, and KaTeX math.
 - Simplified Chinese and English, light and dark themes, mobile layouts, location settings, and chat history import and export.
+
+## Experience refinements
+
+- Lottie animations: the deep-thinking, smart-search, and model-switch icons use SVG SMIL animations converted from Lottie keyframes. They play forward when enabled and in reverse when disabled, run for about 300ms, and unmount their animation nodes afterwards, leaving only the static icon.
+- Chart display: Mermaid diagrams render while a reply streams. Incomplete syntax only draws the lines that are already complete, and the last valid diagram is kept. Diagrams support chart/code switching, zooming and dragging, PNG, SVG, or code download, and a render log. They re-render for light and dark themes.
 
 ## Data and storage
 
@@ -74,6 +83,8 @@ Settings → Data → Delete all chats clears all local conversations, original 
 | `pnpm format` | Format with oxfmt            |
 
 [rspack.config.ts](rspack.config.ts) uses `https://api.deepseek.com` by default. Use `createConfig({ apiOrigin, devServer })` to customize the API origin and development server proxy.
+
+`pnpm build` copies `README.md`, `README.zh-CN.md`, and `LICENSE` into `dist/`, so the build ships with its documentation; keep them when distributing the app.
 
 Chat uses `deepseek-flash` by default through Anthropic-compatible Messages / Files APIs. Speech features use ASR / TTS endpoints. Requests include extensions for search, link reading, titles, and `latest_reminder`, so the configured service must support the corresponding capabilities. Supported attachment formats are determined by server-side validation.
 

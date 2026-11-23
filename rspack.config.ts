@@ -87,7 +87,12 @@ export const createConfig = ({
     }),
     new rspack.DefinePlugin({ __API_ORIGIN__: JSON.stringify(apiOrigin) }),
     new rspack.CopyRspackPlugin({
-      patterns: [{ from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' }],
+      patterns: [
+        { from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' },
+        // 文档随产物一起打包，便于分发和离线查阅
+        { from: path.resolve(root, 'README.md'), to: 'README.md', toType: 'file' },
+        { from: path.resolve(root, 'README.zh-CN.md'), to: 'README.zh-CN.md', toType: 'file' },
+      ],
     }),
   ],
   performance: { hints: false },

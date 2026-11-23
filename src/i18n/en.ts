@@ -31,6 +31,7 @@ export const en = {
   sessionItemMenuRenameOption: 'Rename',
   more: 'More',
   close: 'Close',
+  sessionHistoryTimelineLabelPinned: 'Pinned',
   sessionHistoryTimelineLabelToday: 'Today',
   sessionHistoryTimelineLabelYesterday: 'Yesterday',
   sessionHistoryTimelineLabel7days: '7 Days',

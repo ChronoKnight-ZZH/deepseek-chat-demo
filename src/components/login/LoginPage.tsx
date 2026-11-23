@@ -16,7 +16,7 @@ const TERMS_PATH = '/deepseek-terms-of-use.html'
 const PRIVACY_PATH = '/deepseek-privacy-policy.html'
 
 /**
- * 登录页：密码登录走 RSA-OAEP 加密，后端返回 Bearer Token。
+ * 登录页：密码登录走 RSA-OAEP 加密，后端通过 HttpOnly Cookie 建立会话。
  * 短信、微信、Apple 后端尚未开通，只保留“暂未开放”，不再做任何本地假登录。
  */
 export const LoginPage = () => {

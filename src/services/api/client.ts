@@ -1,5 +1,5 @@
 import { translate, type TranslationMessage } from '../../i18n/index.js'
-import { getAuthToken, handleUnauthorized } from '../auth.js'
+import { handleUnauthorized } from '../auth.js'
 import { API_CREDENTIALS } from '../env.js'
 import { readMessageEvent } from './parseEvent.js'
 import { readServerSentEvents } from './sse.js'
@@ -95,15 +95,11 @@ const readErrorResponse = async (
   })
 }
 
-/** 请求 BFF：自动带 Bearer，401 统一切回登录页 */
+/** 请求 BFF：依赖 HttpOnly Cookie 鉴权，401 统一切回登录页 */
 export const request = async (path: string, init: RequestInit = {}): Promise<Response> => {
   const headers = new Headers(init.headers)
   if (!headers.has('Accept')) {
     headers.set('Accept', 'application/json')
-  }
-  const token = getAuthToken()
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`)
   }
   let response: Response
   try {

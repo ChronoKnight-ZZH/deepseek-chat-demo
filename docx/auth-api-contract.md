@@ -1,16 +1,17 @@
-# 认证接口契约（与 auth-demo 后端一致）
+# 认证接口契约（HttpOnly Cookie）
 
-本契约对应当前实际运行的 `auth-demo` 后端（`D:\aksa\aska\github\auth-demo`）。
-前端只接入登录所需的两步：
+前端已按 HttpOnly Cookie 接入，后端 `auth-demo`（`D:\aksa\aska\github\auth-demo`）
+需同步实现本文标注「后端待实现」的部分。前端接入三步：
 
 1. `GET /auth/public-key`
-2. `POST /auth/login`
+2. `POST /auth/login`：后端通过 `Set-Cookie` 下发 HttpOnly 会话 Cookie
+3. `GET /auth/me`：启动时恢复登录态
 
-本期**不调用** `/auth/me`。登录后前端从响应体拿到 Opaque Bearer Token，
-放在 `sessionStorage`，关闭标签页即失效。
+前端不接触 Token，所有 `/auth/*` 与 `/v1/*` 请求依赖 Cookie
+（`credentials` 由构建配置注入：开发 `same-origin`、分域生产 `include`）。
 
-> 早期冻结稿里的 `httpOnly Cookie + CSRF + keyId` 方案目前后端尚未实现，
-> 不在本次接入范围内；本文以实际后端为准。
+> 跨域直连时 Cookie 需 `SameSite=None; Secure`，且受浏览器第三方 Cookie 限制，
+> 推荐同源反代部署（`AUTH_BASE=/auth`、`BFF_BASE=/v1`）。
 
 ## 1. 通用约定
 
@@ -18,9 +19,10 @@
 
 - 生产环境由同一 Nginx 反代 `/auth`；开发环境由 rspack devServer 代理到
   `http://127.0.0.1:3000`。
-- 认证请求使用 `credentials: 'same-origin'`、`cache: 'no-store'`。
+- 认证请求使用构建期注入的 `credentials`（开发 `same-origin`、分域生产 `include`）、
+  `cache: 'no-store'`。
 - 认证响应不得被缓存：`Cache-Control: no-store`。
-- 认证方式：`Authorization: Bearer <token>`。
+- 认证方式：HttpOnly 会话 Cookie（后端待实现）；服务端可保留 Bearer 作为 CLI 过渡。
 
 ### 1.2 加密
 
@@ -111,26 +113,31 @@
 }
 ```
 
-响应 `200`：
+响应 `200`（后端待实现）：
+
+```text
+Set-Cookie: <name>=<opaque-token>; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800
+```
 
 ```json
 {
-  "token": "opaque-token",
+  "username": "alice",
   "expiresAt": 1760000000000
 }
 ```
 
-- `token` 是不透明字符串，前端不解码。
-- `expiresAt` 为 epoch 毫秒，表示会话绝对过期时间；缺失或为 0 时前端不自行判定过期。
+- Token 只存在于 HttpOnly Cookie，前端不读取、不解码。
+- `username` 可选，缺失时前端使用登录输入值；`expiresAt` 用于展示，缺失或为 0 不自行判定过期。
+- Cookie 的 `Max-Age` 应取 `expiresAt - now`（绝对过期），不要用空闲 TTL。
 - 错误码：`INVALID_CREDENTIALS`、`INVALID_INPUT`、`TOO_MANY_ATTEMPTS`、
   `AUTH_BUSY`、`ACCOUNT_LOCKED`、`SESSION_WRITE_FAILED`、
   `SESSION_STORE_UNAVAILABLE`。
 
-### 2.3 `POST /auth/logout`
+### 2.3 `POST /auth/logout`（后端待实现）
 
-- 请求头：`Authorization: Bearer <token>`
-- 成功：`200 { "ok": true }`
-- 幂等：Token 已失效时仍按成功处理。
+- 鉴权：HttpOnly 会话 Cookie
+- 成功：`200 { "ok": true }`，并 `Set-Cookie` 清除会话（`Max-Age=0`，其余属性与写入时一致）
+- 幂等：Cookie 缺失或已失效时仍按成功处理。
 - 前端即使请求失败也清除本地登录状态。
 
 ### 2.4 `POST /auth/change-password`
@@ -144,28 +151,28 @@
 ```
 
 - 密文内容是 §1.2 的 `v2` 改密 payload。
-- 成功：`200 { "credentialVersion": 2 }`
-- 成功后后端递增 `credential_version`，该用户全部旧 Token 立即失效。
+- 成功：`200 { "credentialVersion": 2 }`，并清除当前会话 Cookie（后端待实现）
+- 成功后后端递增 `credential_version`，该用户全部旧会话立即失效。
 - 前端收到成功后直接回登录页。
 - 错误码：`INVALID_CREDENTIALS`（旧密码错误）、`INVALID_INPUT`、
   `SESSION_WRITE_FAILED`、`ACCOUNT_LOCKED`、`TOKEN_INVALID`。
 
-### 2.5 `GET /auth/me`（本期不使用）
+### 2.5 `GET /auth/me`（后端待实现）
 
-后端保留该接口用于凭证验证 Demo：
+前端启动时调用它恢复登录态，需返回展示与改密所需的字段：
 
 ```json
-{ "userId": 1 }
+{ "userId": 1, "username": "alice", "expiresAt": 1760000000000 }
 ```
 
-前端登录流程不调用它，因此无法在启动时发现服务端已撤销的 Token。
-撤销与锁定要等下一次受保护请求返回 401/403 时才能感知。
+- 无有效 Cookie 时返回 `401 TOKEN_MISSING` / `TOKEN_INVALID` / `TOKEN_EXPIRED`。
+- `username` 缺失会导致改密 payload 无法组装，应始终返回。
 
 ## 3. 前端处理矩阵
 
 | 状态                            | 前端行为                                                       |
 | ------------------------------- | -------------------------------------------------------------- |
-| 启动                            | 从 `sessionStorage` 恢复会话；`expiresAt` 已过期则视为未登录   |
+| 启动                            | 调用 `GET /auth/me` 恢复会话；401 或网络失败都显示登录页       |
 | 登录 401                        | 统一提示“账号或密码错误”                                       |
 | 登录 429                        | 读取 `Retry-After` 或响应体 `retryAfter`，倒计时结束前禁用提交 |
 | 登录 403 `ACCOUNT_LOCKED`       | 提示账号已锁定                                                 |
@@ -181,10 +188,9 @@
 
 ### 4.1 `POST /v1/chat/stream`
 
-请求头：
+请求头（鉴权由同源 Cookie 携带，前端不再发送 `Authorization`）：
 
 ```text
-Authorization: Bearer <token>
 Content-Type: application/json
 Accept: text/event-stream
 X-Request-Id: <8-64 位 [A-Za-z0-9_-]>
@@ -239,7 +245,7 @@ data: {"requestId":"...","status":"done","finishReason":"end_turn","code":null}
 
 `POST /v1/files/originals`
 
-- `Authorization: Bearer <token>`，请求体就是文件字节（不是 multipart）。
+- 依赖会话 Cookie，请求体就是文件字节（不是 multipart）。
 - `X-File-Name` / `X-File-Mime` 为 `encodeURIComponent` 后的值；MIME 最终以文件头嗅探为准。
 - 成功 `201`：
 
@@ -260,7 +266,7 @@ data: {"requestId":"...","status":"done","finishReason":"end_turn","code":null}
 
 `GET /v1/files/originals/:fileId/url?sessionId=`
 
-- 要求 Bearer；文件与会话必须属于当前用户，否则统一 `404 FILE_ACCESS_DENIED`。
+- 要求会话 Cookie；文件与会话必须属于当前用户，否则统一 `404 FILE_ACCESS_DENIED`。
 - 成功：
 
   ```json
@@ -278,7 +284,7 @@ data: {"requestId":"...","status":"done","finishReason":"end_turn","code":null}
 
 `GET /v1/files/content?file_id=&state=&ty=`
 
-- **不需要** `Authorization`：`<img src>` 无法携带 Bearer，`state` 票据就是能力凭据。
+- **不依赖会话 Cookie**：`<img src>` 可能跨源、无法带自定义头，`state` 票据就是能力凭据。
 - 服务端仍会回查文件归属与会话存活；删除会话后立即 `404`。
 - 图片内联返回原始 MIME + `inline`；其他文件统一 `application/octet-stream` +
   `attachment`，并带 `nosniff` / `CSP: sandbox`。
@@ -297,7 +303,7 @@ data: {"requestId":"...","status":"done","finishReason":"end_turn","code":null}
 
 - ASR：multipart 原样转发，上限 8MB。
 - TTS：JSON 请求，二进制音频流原样返回。
-- 两者都要求 Bearer Token，不再接受浏览器 API Key。
+- 两者都要求会话 Cookie，不再接受浏览器 API Key。
 
 ### 4.7 错误映射
 
@@ -345,7 +351,7 @@ node scripts/import-history.js --user alice --file deepseek_data-2026-11-22.zip
 node scripts/import-history.js --user alice --file backup.zip --dry-run
 ```
 
-- 锁定/重置密码会递增 `credential_version` 并写穿 Redis，旧 Bearer Token 立即失效。
+- 锁定/重置密码会递增 `credential_version` 并写穿 Redis，旧会话立即失效。
 - 导入默认跳过已存在的会话 id；`--replace` 覆盖同 id 会话。
 - 每次正式导入写入 `import_jobs`（执行者、来源、sha256、统计、失败原因）；`--dry-run` 不写库。
 - 导入的图片直接写入 `storageId`；首次发送时前端从 BFF 取回原件再上传上游。

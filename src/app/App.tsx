@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { useEffect } from 'react'
 import { useTranslate } from '../i18n/index.js'
 import { useSettings } from '../services/settings.js'
-import { useAuth } from '../services/auth.js'
+import { useAuth, restoreSession } from '../services/auth.js'
 import { LoginPage } from '../components/login/LoginPage.js'
 import { useIsMobile, useMobileViewport, usePreventPageScroll, usePushSider } from './viewport.js'
 import {
@@ -73,6 +73,11 @@ export const App = () => {
 
   usePreventPageScroll(isMobile)
 
+  // 启动时用 Cookie 探测登录态，探测完成前不渲染登录页，避免闪烁
+  useEffect(() => {
+    void restoreSession()
+  }, [])
+
   useEffect(() => {
     document.documentElement.lang = locale
   }, [locale])
@@ -125,6 +130,20 @@ export const App = () => {
     }
     void initChat(true)
   }, [loggedIn])
+
+  if (authStatus === 'checking') {
+    return (
+      <div className={styles.frame}>
+        <main className={styles.main}>
+          <div className={styles.loadingView}>
+            <div className={styles.loadingState} role="status" aria-live="polite">
+              <span>{t('sessionLoading')}</span>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+  }
 
   if (!loggedIn) {
     return (

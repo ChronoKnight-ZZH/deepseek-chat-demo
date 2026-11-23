@@ -12,8 +12,16 @@ export type PublicKeyResponse = {
 }
 
 export type LoginResponse = {
-  token: string
-  /** epoch 毫秒 */
+  /** 后端可能回显用户名；缺失时前端使用登录输入值 */
+  username?: string
+  /** epoch 毫秒，0 表示后端未返回 */
+  expiresAt: number
+}
+
+export type MeResponse = {
+  userId: number
+  username?: string
+  /** epoch 毫秒，0 表示后端未返回 */
   expiresAt: number
 }
 
@@ -83,14 +91,11 @@ const readError = async (response: Response): Promise<AuthApiError> => {
   return new AuthApiError(code, message, response.status, retryAfter)
 }
 
-const authFetch = async <T>(path: string, init: RequestInit = {}, token?: string): Promise<T> => {
+const authFetch = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
   if (typeof init.body === 'string' && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
-  }
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
   }
   let response: Response
   try {
@@ -163,28 +168,41 @@ export const getPublicKey = (force = false): Promise<PublicKeyResponse> => {
   return publicKeyRequest
 }
 
+/** 登录成功后会话由响应里的 Set-Cookie 建立，响应体只补充展示信息 */
 export const login = async (encrypted: string): Promise<LoginResponse> => {
   const body = await authFetch<unknown>('/login', {
     method: 'POST',
     body: JSON.stringify({ encrypted }),
   })
-  if (!isRecord(body) || typeof body.token !== 'string' || !body.token) {
-    throw new AuthApiError('PROTOCOL_ERROR', 'Login response is missing token')
+  if (!isRecord(body)) {
+    throw new AuthApiError('PROTOCOL_ERROR', 'Login response is invalid')
   }
   return {
-    token: body.token,
+    username: typeof body.username === 'string' && body.username ? body.username : undefined,
     expiresAt: typeof body.expiresAt === 'number' ? body.expiresAt : 0,
   }
 }
 
-export const logout = async (token: string): Promise<void> => {
-  await authFetch<unknown>('/logout', { method: 'POST', body: '{}' }, token)
+/** Cookie 会话探测：401 表示未登录 */
+export const getMe = async (): Promise<MeResponse> => {
+  const body = await authFetch<unknown>('/me')
+  if (!isRecord(body) || typeof body.userId !== 'number') {
+    throw new AuthApiError('PROTOCOL_ERROR', 'Session response is invalid')
+  }
+  return {
+    userId: body.userId,
+    username: typeof body.username === 'string' && body.username ? body.username : undefined,
+    expiresAt: typeof body.expiresAt === 'number' ? body.expiresAt : 0,
+  }
 }
 
-export const changePassword = async (token: string, encrypted: string): Promise<void> => {
-  await authFetch<unknown>(
-    '/change-password',
-    { method: 'POST', body: JSON.stringify({ encrypted }) },
-    token
-  )
+export const logout = async (): Promise<void> => {
+  await authFetch<unknown>('/logout', { method: 'POST', body: '{}' })
+}
+
+export const changePassword = async (encrypted: string): Promise<void> => {
+  await authFetch<unknown>('/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ encrypted }),
+  })
 }

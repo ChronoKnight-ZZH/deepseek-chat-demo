@@ -3,6 +3,7 @@ import { readMessageEvent } from './parseEvent.js'
 import { readServerSentEvents } from './sse.js'
 import type {
   ApiErrorBody,
+  BalanceResponse,
   CreateMessageRequest,
   FileObject,
   FilePurpose,
@@ -96,6 +97,16 @@ export const verifyApiKey = async (apiKey: string, signal?: AbortSignal): Promis
     headers: { Authorization: `Bearer ${apiKey}` },
     signal,
   })
+}
+
+/** GET /user/balance 查询账户余额（需要有效的 API Key） */
+export const fetchBalance = async (apiKey: string, signal?: AbortSignal): Promise<BalanceResponse> => {
+  const response = await request(`${API_ORIGIN}/user/balance`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal,
+  })
+  return (await response.json()) as BalanceResponse
 }
 
 /**

@@ -108,6 +108,26 @@
   margin-left: auto;
 }
 
+.usage {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.usageCost {
+  padding: 1px 8px;
+  border-radius: 100px;
+  background-color: var(--dsw-alias-button-ghost-active-fill);
+  color: var(--dsw-alias-brand-text);
+  font-size: 13px;
+  line-height: 18px;
+}
+
 .summary {
   display: flex;
   align-items: center;

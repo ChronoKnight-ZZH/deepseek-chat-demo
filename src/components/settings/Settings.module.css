@@ -307,12 +307,51 @@
   background-color: var(--dsw-specific-login-input);
 }
 
+.apiKeyActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .apiKeyMask {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   color: var(--dsw-alias-label-caption);
   user-select: none;
+}
+
+.balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.balanceText {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.balanceSplit {
+  color: var(--dsw-alias-label-caption);
+}
+
+.balanceLoading {
+  color: var(--dsw-alias-label-caption);
+}
+
+.balanceError {
+  color: var(--dsw-alias-state-error-primary);
 }
 
 .apiKeyInput {

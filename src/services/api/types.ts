@@ -258,3 +258,20 @@ export type ApiErrorBody = {
     code?: string | null
   }
 }
+
+/** GET /user/balance 响应体，参考 https://api-docs.deepseek.com/zh-cn/api/get-user-balance */
+export type BalanceResponse = {
+  is_available: boolean
+  balance_infos: BalanceInfo[]
+}
+
+export type BalanceInfo = {
+  /** 货币代码，如 CNY、USD */
+  currency: string
+  /** 总额 = granted + topped_up（实际以服务端为准） */
+  total_balance: string
+  /** 赠金余额 */
+  granted_balance: string
+  /** 充值余额 */
+  topped_up_balance: string
+}

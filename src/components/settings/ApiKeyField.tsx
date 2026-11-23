@@ -1,11 +1,92 @@
-import { useState } from 'react'
-import { IconEditOutline16 } from '../base/icons.js'
-import { useSettings } from '../../services/settings.js'
+import { useEffect, useRef, useState } from 'react'
+import { IconEditOutline16, IconRefreshOutline16, IconTrashOutline16 } from '../base/icons.js'
+import { setApiKey, useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { IconButton } from '../base/IconButton.js'
 import { useApiKeyForm } from './useApiKeyForm.js'
 import { useTranslate } from '../../i18n/index.js'
 import styles from './Settings.module.css'
+import { fetchBalance } from '../../services/api/client.js'
+import type { BalanceInfo } from '../../services/api/types.js'
+
+const BALANCE_TTL_MS = 5 * 60 * 1000 // 同一 API Key 5 分钟内不重复请求
+
+type BalanceState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'data'; info: BalanceInfo; available: boolean }
+  | { status: 'error'; message: string }
+
+const pickBalanceInfo = (infos: BalanceInfo[]): BalanceInfo | null => {
+  if (infos.length === 0) {
+    return null
+  }
+  const cny = infos.find((info) => info.currency === 'CNY')
+  return cny ?? infos[0]
+}
+
+const formatMoney = (value: string) => {
+  const num = Number(value)
+  if (!Number.isFinite(num)) {
+    return '0.00'
+  }
+  return num.toFixed(2)
+}
+
+/**
+ * 账户余额加载：跟随 apiKey 变化，带 5 分钟缓存。
+ * 调用方传入 showSaved（等于 apiKey && !editing）确保只在掩码状态下查询。
+ */
+const useBalance = (apiKey: string | null, showSaved: boolean) => {
+  const [state, setState] = useState<BalanceState>({ status: 'idle' })
+  const cacheRef = useRef<{ key: string; fetchedAt: number } | null>(null)
+  const lastKeyRef = useRef<string | null>(null)
+  const loadRef = useRef<(force?: boolean) => Promise<void>>(async () => {})
+
+  loadRef.current = async (force = false) => {
+    if (!apiKey || !showSaved) {
+      setState({ status: 'idle' })
+      return
+    }
+    if (
+      !force &&
+      cacheRef.current?.key === apiKey &&
+      Date.now() - cacheRef.current.fetchedAt < BALANCE_TTL_MS
+    ) {
+      return
+    }
+    setState({ status: 'loading' })
+    try {
+      const response = await fetchBalance(apiKey)
+      const info = pickBalanceInfo(response.balance_infos)
+      if (!info) {
+        setState({ status: 'error', message: 'no_balance_info' })
+        return
+      }
+      cacheRef.current = { key: apiKey, fetchedAt: Date.now() }
+      setState({ status: 'data', info, available: response.is_available })
+    } catch (error) {
+      setState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'unknown',
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (!apiKey || !showSaved) {
+      setState({ status: 'idle' })
+      lastKeyRef.current = null
+      return
+    }
+    // 新 apiKey 强制刷新，老 apiKey 走缓存
+    const force = lastKeyRef.current !== apiKey
+    lastKeyRef.current = apiKey
+    void loadRef.current(force)
+  }, [apiKey, showSaved])
+
+  return { state, refresh: () => void loadRef.current(true) }
+}
 
 /** API Key 的编辑状态：输入框与移动端底部的「确定」按钮共用 */
 export const useApiKeyEditor = () => {
@@ -22,6 +103,8 @@ export const ApiKeyField = ({ editor }: { editor: ApiKeyEditor }) => {
   const t = useTranslate()
   const isMobile = useIsMobile()
   const { apiKey, editing, setEditing, form, showInput } = editor
+  const showSaved = Boolean(apiKey && !editing)
+  const { state: balance, refresh: refreshBalance } = useBalance(apiKey, showSaved)
 
   return (
     <div className={styles.cell}>
@@ -30,12 +113,20 @@ export const ApiKeyField = ({ editor }: { editor: ApiKeyEditor }) => {
         {apiKey && !editing ? (
           <div className={styles.apiKeySaved}>
             <span className={styles.apiKeyMask}>{'*'.repeat(apiKey.length)}</span>
-            <IconButton
-              tone="primary"
-              icon={<IconEditOutline16 />}
-              tooltip={t('apiKeyEdit')}
-              onClick={() => setEditing(true)}
-            />
+            <div className={styles.apiKeyActions}>
+              <IconButton
+                tone="primary"
+                icon={<IconEditOutline16 />}
+                tooltip={t('apiKeyEdit')}
+                onClick={() => setEditing(true)}
+              />
+              <IconButton
+                tone="danger"
+                icon={<IconTrashOutline16 />}
+                tooltip={t('apiKeyDelete')}
+                onClick={() => setApiKey(null)}
+              />
+            </div>
           </div>
         ) : (
           <div className={styles.apiKeyInput}>
@@ -78,6 +169,38 @@ export const ApiKeyField = ({ editor }: { editor: ApiKeyEditor }) => {
           </div>
         )}
         {showInput && form.error ? <div className={styles.error}>{form.error}</div> : null}
+        {showSaved ? (
+          <div className={styles.balance}>
+            {balance.status === 'loading' ? (
+              <span className={styles.balanceLoading}>{t('balanceLoading')}</span>
+            ) : balance.status === 'error' ? (
+              <span className={styles.balanceError}>{t('balanceError')}</span>
+            ) : balance.status === 'data' ? (
+              balance.available ? (
+                <span className={styles.balanceText}>
+                  {t('balanceTotal', {
+                    currency: balance.info.currency,
+                    amount: formatMoney(balance.info.total_balance),
+                  })}
+                  <span className={styles.balanceSplit}>
+                    {t('balanceDetail', {
+                      granted: formatMoney(balance.info.granted_balance),
+                      toppedUp: formatMoney(balance.info.topped_up_balance),
+                    })}
+                  </span>
+                </span>
+              ) : (
+                <span className={styles.balanceError}>{t('balanceUnavailable')}</span>
+              )
+            ) : null}
+            <IconButton
+              tone="primary"
+              icon={<IconRefreshOutline16 />}
+              tooltip={t('balanceRefresh')}
+              onClick={() => refreshBalance()}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   )

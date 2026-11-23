@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { IconRefreshOutline16, IconWarningOutline16 } from '../base/icons.js'
 import { describeReply } from '../../services/chat/describe.js'
 import { canContinueReply } from '../../services/chat/reply.js'
+import { formatCost, formatTokens, summarizeUsage } from '../../services/chat/usage.js'
 import { continueReply, regenerateReply } from '../../services/chat/store.js'
 import { stopReadAloud } from '../../services/speech/readAloud.js'
 import type { AssistantMessage as AssistantMessageType } from '../../services/chat/types.js'
@@ -56,6 +57,11 @@ export const AssistantMessage = memo(function AssistantMessage({
   const copyText = responseText || notice?.text
   const waiting = streaming && view.steps.length === 0 && !view.answer && !message.thinking
   const summaryEntry = `${message.id}-summary`
+  // 停止或报错的回复只拿到 message_start 的用量，输出 token 不完整，不展示。
+  const usage =
+    !streaming && message.status === 'done' && message.usage
+      ? summarizeUsage(message.usage, message.model)
+      : null
   return (
     <div className={styles.message} data-message-id={message.id}>
       {refused ? null : (
@@ -136,6 +142,27 @@ export const AssistantMessage = memo(function AssistantMessage({
               { count: view.searchResults.length }
             )}
           </span>
+        </div>
+      ) : null}
+      {usage ? (
+        <div className={styles.usage}>
+          <span>
+            {usage.cached > 0
+              ? t('messageUsage', {
+                  input: formatTokens(usage.input),
+                  cached: formatTokens(usage.cached),
+                  output: formatTokens(usage.output),
+                })
+              : t('messageUsageWithoutCache', {
+                  input: formatTokens(usage.input),
+                  output: formatTokens(usage.output),
+                })}
+          </span>
+          {usage.cost === null ? null : (
+            <span className={styles.usageCost} title={t('messageUsageCostNote')}>
+              {t('messageUsageCost', { cost: formatCost(usage.cost) })}
+            </span>
+          )}
         </div>
       ) : null}
       {streaming ? null : (

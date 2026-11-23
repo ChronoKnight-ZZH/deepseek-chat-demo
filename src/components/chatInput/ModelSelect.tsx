@@ -2,10 +2,11 @@ import clsx from 'clsx'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAnchoredPosition, useDismiss } from '../base/anchored.js'
-import { IconCheckOutline16, IconChevronDownOutline14, IconModelOutline14 } from '../base/icons.js'
+import { IconCheckOutline16, IconChevronDownOutline14 } from '../base/icons.js'
 import type { ChatModel } from '../../services/api/types.js'
 import { setModel, useSettings } from '../../services/settings.js'
 import { useTranslate, type TranslationKey } from '../../i18n/index.js'
+import { ModelToggleIcon, useModelAnimation } from './ToggleIcons.js'
 import styles from './ChatInput.module.css'
 
 /** 可选模型及其特点，顺序即菜单内的展示顺序 */
@@ -29,6 +30,7 @@ const models: { value: ChatModel; name: TranslationKey; description: Translation
 export const ModelSelect = () => {
   const t = useTranslate()
   const model = useSettings((state) => state.model)
+  const modelRun = useModelAnimation(model)
   const [open, setOpen] = useState(false)
   const current = models.find((option) => option.value === model) ?? models[0]
   // 输入框位于页面底部，优先向上展开；空间不足时由 useAnchoredPosition 翻到下方。
@@ -50,8 +52,13 @@ export const ModelSelect = () => {
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <IconModelOutline14 />
-        <span className={clsx(styles.toggleLabel, styles.modelLabel)}>{t(current.name)}</span>
+        <ModelToggleIcon run={modelRun} />
+        <span
+          key={model}
+          className={clsx(styles.toggleLabel, styles.modelLabel, modelRun && styles.modelLabelSwap)}
+        >
+          {t(current.name)}
+        </span>
         <span className={styles.modelArrow}>
           <IconChevronDownOutline14 />
         </span>

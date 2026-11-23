@@ -274,11 +274,27 @@
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
-  transition-property: border, background;
-  transition-duration: 0.2s;
+  transition:
+    border-color var(--ds-transition-duration) var(--ds-ease-in-out),
+    background-color var(--ds-transition-duration) var(--ds-ease-in-out),
+    color var(--ds-transition-duration) var(--ds-ease-in-out),
+    filter var(--ds-transition-duration) var(--ds-ease-in-out),
+    box-shadow var(--ds-transition-duration) var(--ds-ease-in-out),
+    transform 80ms var(--ds-ease-in-out);
 
   &:hover:not(:disabled) {
     background-color: var(--dsw-alias-interactive-bg-hover);
+    /* 悬停提亮 8%，并叠一圈 1px 的主题色外发光 */
+    filter: brightness(1.08);
+    box-shadow:
+      0 0 0 1px var(--dsw-alias-button-ghost-active-border),
+      0 0 6px 0 var(--dsw-alias-button-ghost-active-border);
+  }
+
+  /* 按下时整体内缩约 2px，形成明确的按压反馈 */
+  &:active:not(:disabled) {
+    transform: scale(0.94);
+    filter: brightness(1.04);
   }
 
   &:disabled {
@@ -308,6 +324,23 @@
   text-overflow: ellipsis;
 }
 
+/* 切换模型时文案轻微上移淡入，与图标动画同步 */
+.modelLabelSwap {
+  animation: modelLabelIn 240ms var(--ds-ease-in-out);
+}
+
+@keyframes modelLabelIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .modelArrow {
   display: flex;
   margin-left: -1px;
@@ -334,6 +367,20 @@
     0 0 1px 0 rgba(0, 0, 0, 0.2),
     0 0 4px 0 rgba(0, 0, 0, 0.02),
     0 12px 32px 0 rgba(0, 0, 0, 0.08);
+  transform-origin: bottom left;
+  animation: modelMenuIn 180ms var(--ds-ease-in-out);
+}
+
+@keyframes modelMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .modelOption {
@@ -344,10 +391,17 @@
   border-radius: 10px;
   cursor: pointer;
   user-select: none;
-  transition: background-color var(--ds-transition-duration) var(--ds-ease-in-out);
+  transition:
+    background-color var(--ds-transition-duration) var(--ds-ease-in-out),
+    transform 120ms var(--ds-ease-in-out);
 
   &:hover {
     background: var(--dsw-alias-interactive-bg-hover);
+    filter: brightness(1.08);
+  }
+
+  &:active {
+    transform: scale(0.98);
   }
 }
 

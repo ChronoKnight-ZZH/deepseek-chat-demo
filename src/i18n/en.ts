@@ -29,6 +29,8 @@ export const en = {
   cancel: 'Cancel',
   delete: 'Delete',
   sessionItemMenuRenameOption: 'Rename',
+  sessionItemMenuPinOption: 'Pin to top',
+  sessionItemMenuUnpinOption: 'Unpin',
   more: 'More',
   close: 'Close',
   sessionHistoryTimelineLabelPinned: 'Pinned',

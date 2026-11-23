@@ -104,8 +104,8 @@ export const saveSession = async (session: Session, files: StoredFile[] = []): P
   ])
 }
 
-/** 未打开的会话也可重命名，只读取该会话，原子更新详情和列表。 */
-export const renameSession = async (id: string, title: string): Promise<void> => {
+/** 未打开的会话也可修改元数据，只读取该会话，原子更新详情和列表。 */
+const updateSessionMeta = async (id: string, update: (session: Session) => void): Promise<void> => {
   const tx = (await getDB()).transaction(['sessions', 'sessionSummaries'], 'readwrite')
   await Promise.all([
     (async () => {
@@ -113,7 +113,7 @@ export const renameSession = async (id: string, title: string): Promise<void> =>
         const sessions = tx.objectStore('sessions')
         const session = await sessions.get(id)
         if (session) {
-          session.title = title
+          update(session)
           await sessions.put(session)
           await tx.objectStore('sessionSummaries').put(storedSummary(session))
         }
@@ -125,6 +125,18 @@ export const renameSession = async (id: string, title: string): Promise<void> =>
     tx.done,
   ])
 }
+
+/** 未打开的会话也可重命名 */
+export const renameSession = (id: string, title: string): Promise<void> =>
+  updateSessionMeta(id, (session) => {
+    session.title = title
+  })
+
+/** 未打开的会话也可置顶或取消置顶 */
+export const setSessionPinned = (id: string, pinned: boolean): Promise<void> =>
+  updateSessionMeta(id, (session) => {
+    session.pinned = pinned
+  })
 
 /** 删除会话，仅清理已无会话引用的本地原件；远端文件不删。 */
 export const deleteSession = async (sessionId: string): Promise<void> => {

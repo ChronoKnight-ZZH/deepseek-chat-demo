@@ -25,6 +25,8 @@ export const zh = {
   cancel: '取消',
   delete: '删除',
   sessionItemMenuRenameOption: '重命名',
+  sessionItemMenuPinOption: '置顶',
+  sessionItemMenuUnpinOption: '取消置顶',
   more: '更多',
   close: '关闭',
   sessionHistoryTimelineLabelPinned: '置顶',

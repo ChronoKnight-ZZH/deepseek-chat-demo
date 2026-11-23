@@ -247,6 +247,32 @@ export const IconPaperclipOutline16 = () => (
   </svg>
 )
 
+/** 置顶：图钉 */
+export const IconPinOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+/** 取消置顶：带斜线的图钉 */
+export const IconUnpinOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M12 17v5M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11M2 2l20 20"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 export const IconRefreshOutline16 = () => (
   <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -582,10 +608,7 @@ export const IconZoomInOutline16 = () => (
 
 export const IconZoomOutOutline16 = () => (
   <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M11.001 6.09961V7.40039H1.7002V6.09961H11.001Z"
-      fill="currentColor"
-    />
+    <path d="M11.001 6.09961V7.40039H1.7002V6.09961H11.001Z" fill="currentColor" />
     <path
       d="M11.2852 7.00098C11.2852 4.63495 9.36716 2.7168 7.00195 2.7168C4.63674 2.7168 2.71875 4.63495 2.71875 7.00098C2.71875 9.36672 4.63674 11.2852 7.00195 11.2852C9.36716 11.2852 11.2852 9.36672 11.2852 7.00098ZM12.5859 7.00098C12.5857 10.0853 10.0863 12.585 7.00195 12.585C3.91755 12.585 1.41724 10.0853 1.417 7.00098C1.417 3.91643 3.91741 1.417 7.00195 1.417C10.0865 1.417 12.5859 3.91643 12.5859 7.00098Z"
       fill="currentColor"

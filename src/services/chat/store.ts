@@ -478,6 +478,24 @@ export const renameSession = (id: string, title: string) => {
   }
 }
 
+/** 置顶或取消置顶；未打开的会话只更新列表与摘要。 */
+export const setSessionPinned = (id: string, pinned: boolean) => {
+  if (get().importingHistory || deletingSessions.has(id)) {
+    return
+  }
+  if (getSession(id)) {
+    updateSession(id, (session) => ({ ...session, pinned }))
+    persist(id)
+  } else {
+    set((state) => ({
+      sessions: sortSessions(
+        state.sessions.map((session) => (session.id === id ? { ...session, pinned } : session))
+      ),
+    }))
+    void db.setSessionPinned(id, pinned).catch(db.reportStorageError('pin session'))
+  }
+}
+
 /**
  * 删除会话；本地原件仅在没有其他会话引用时清理。远端文件不删：导入、编辑、重新生成都会复用同一个附件，
  * 同一服务端文件可能被多个会话引用，不维护引用计数。

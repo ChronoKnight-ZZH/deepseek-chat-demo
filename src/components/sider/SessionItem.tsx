@@ -1,8 +1,14 @@
 import clsx from 'clsx'
 import { memo, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
-import { IconEditOutline16, IconEllipsisOutline16, IconTrashOutline16 } from '../base/icons.js'
-import { renameSession, selectSession } from '../../services/chat/store.js'
+import {
+  IconEditOutline16,
+  IconEllipsisOutline16,
+  IconPinOutline16,
+  IconTrashOutline16,
+  IconUnpinOutline16,
+} from '../base/icons.js'
+import { renameSession, selectSession, setSessionPinned } from '../../services/chat/store.js'
 import { getSessionUrl } from '../../services/chat/route.js'
 import type { SessionSummary } from '../../services/chat/types.js'
 import { IconButton } from '../base/IconButton.js'
@@ -79,6 +85,12 @@ export const SessionItem = memo(function SessionItem({
       >
         <Menu
           options={[
+            {
+              key: 'pin',
+              label: t(session.pinned ? 'sessionItemMenuUnpinOption' : 'sessionItemMenuPinOption'),
+              icon: session.pinned ? <IconUnpinOutline16 /> : <IconPinOutline16 />,
+              onSelect: () => setSessionPinned(session.id, !session.pinned),
+            },
             {
               key: 'rename',
               label: t('sessionItemMenuRenameOption'),

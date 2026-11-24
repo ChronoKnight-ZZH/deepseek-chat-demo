@@ -15,8 +15,10 @@ import {
   redo,
   undo,
 } from '@codemirror/commands'
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
+import { markdown, markdownLanguage, insertNewlineContinueMarkup } from '@codemirror/lang-markdown'
 import { Compartment, EditorState, Transaction } from '@codemirror/state'
+import { syntaxTree } from '@codemirror/language'
+import type { SyntaxNode } from '@lezer/common'
 import { EditorView, keymap, placeholder as placeholderExtension } from '@codemirror/view'
 import { GFM } from '@lezer/markdown'
 import { sanitizeUrl } from '../markdown/Link.js'
@@ -88,6 +90,19 @@ const composerTheme = EditorView.theme({
   },
 })
 
+/** 光标是否位于有序或无序列表项内，用于决定回车是续写列表还是发送 */
+const isInsideList = (state: EditorState, position: number) => {
+  const tree = syntaxTree(state)
+  return [tree.resolveInner(position, -1), tree.resolveInner(position, 1)].some((start) => {
+    for (let node: SyntaxNode | null = start; node; node = node.parent) {
+      if (node.name === 'BulletList' || node.name === 'OrderedList') {
+        return true
+      }
+    }
+    return false
+  })
+}
+
 const MarkdownComposerInner = (
   {
     value,
@@ -158,9 +173,14 @@ const MarkdownComposerInner = (
           keymap.of([
             {
               key: 'Enter',
-              run: () => {
+              run: (view) => {
                 if (propsRef.current.disabled) {
                   return false
+                }
+                // 列表内回车续写下一项，有序列表编号自动递增；空列表项则退出列表
+                const { from } = view.state.selection.main
+                if (isInsideList(view.state, from) && insertNewlineContinueMarkup(view)) {
+                  return true
                 }
                 propsRef.current.onSubmit()
                 return true

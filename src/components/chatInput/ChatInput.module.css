@@ -184,6 +184,27 @@
   z-index: 950;
   margin: 0;
   align-self: auto;
+  /* 延迟出现后再淡入上浮，避免选中文本时突然弹出 */
+  transform-origin: center bottom;
+  animation: toolbarIn 140ms var(--ds-ease-in-out);
+}
+
+@keyframes toolbarIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolbarFloating {
+    animation: none;
+  }
 }
 
 .toolbarButton {

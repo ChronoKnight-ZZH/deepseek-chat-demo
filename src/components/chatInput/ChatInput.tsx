@@ -33,6 +33,9 @@ import { ModelSelect } from './ModelSelect.js'
 import { SearchToggleIcon, ThinkingToggleIcon, useToggleAnimation } from './ToggleIcons.js'
 import styles from './ChatInput.module.css'
 
+/** 选区稳定多久后显示格式工具栏，避免拖选过程中反复闪现 */
+const TOOLBAR_SHOW_DELAY = 160
+
 /** 输入框：自适应高度的文本框 + 文件 + 深度思考与智能搜索开关 + 语音输入 + 发送 / 停止 */
 export const ChatInput = memo(function ChatInput({ sessionId }: { sessionId: string | null }) {
   // 切换目标时释放录音、转写和 DOM 状态；文字与附件由草稿服务保留。
@@ -61,21 +64,32 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const togglesRef = useRef<HTMLDivElement>(null)
   const [selection, setSelection] = useState<Selection>({ start: 0, end: 0 })
   const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null)
+  const toolbarVisibleRef = useRef(false)
 
   // 只有选中文本时才显示格式工具栏，位置跟随选区在视口中的包围盒
   useLayoutEffect(() => {
     if (selection.end <= selection.start) {
+      toolbarVisibleRef.current = false
       setSelectionRect(null)
       return
     }
     const update = () => {
-      setSelectionRect(composerRef.current?.getSelectionRect() ?? null)
+      const rect = composerRef.current?.getSelectionRect() ?? null
+      toolbarVisibleRef.current = rect !== null
+      setSelectionRect(rect)
     }
-    update()
+    // 拖选时选区持续变化，停顿片刻再出现；已经显示时立即跟随，不做延迟
+    let timer: number | undefined
+    if (toolbarVisibleRef.current) {
+      update()
+    } else {
+      timer = window.setTimeout(update, TOOLBAR_SHOW_DELAY)
+    }
     window.addEventListener('resize', update)
     // 捕获阶段监听，编辑器内部滚动也能同步位置
     window.addEventListener('scroll', update, true)
     return () => {
+      window.clearTimeout(timer)
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
     }

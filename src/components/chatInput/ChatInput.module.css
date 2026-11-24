@@ -163,60 +163,334 @@
   background-color: var(--dsw-alias-state-error-primary);
 }
 
-.textareaWrapper {
+/* 选中文本时浮在选区附近的 Markdown 简易工具栏：链接、加粗、斜体、段落格式 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--dsw-specific-menu);
+  box-shadow:
+    0 0 1px 0 rgba(0, 0, 0, 0.08),
+    0 2px 8px 0 rgba(0, 0, 0, 0.06);
+  cursor: default;
+}
+
+/* 浮层不占据输入框布局，位置由选区包围盒计算 */
+.toolbarFloating {
+  position: fixed;
+  z-index: 950;
+  margin: 0;
+  align-self: auto;
+}
+
+.toolbarButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--ds-transition-duration) var(--ds-ease-in-out);
+
+  &:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--dsw-alias-button-primary-fill);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.boldIcon {
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.italicIcon {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 16px;
+  line-height: 1;
+  font-style: italic;
+}
+
+.blockTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  height: 28px;
+  padding: 0 6px 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--ds-transition-duration) var(--ds-ease-in-out);
+
+  &:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--dsw-alias-button-primary-fill);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.blockTriggerOpen {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.blockArrow {
+  display: flex;
+  color: var(--dsw-alias-label-secondary);
+  transition: transform var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+.blockTriggerOpen .blockArrow {
+  transform: rotate(180deg);
+}
+
+.blockMenu {
+  position: fixed;
+  z-index: 960;
+  box-sizing: border-box;
+  min-width: 148px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  background: var(--dsw-specific-menu);
+  box-shadow:
+    0 0 1px 0 rgba(0, 0, 0, 0.2),
+    0 0 4px 0 rgba(0, 0, 0, 0.02),
+    0 12px 32px 0 rgba(0, 0, 0, 0.08);
+  transform-origin: bottom left;
+  animation: blockMenuIn 140ms var(--ds-ease-in-out);
+}
+
+@keyframes blockMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.blockOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.blockOptionSelected {
+  color: var(--dsw-alias-brand-text);
+}
+
+.linkPopover {
+  position: fixed;
+  z-index: 960;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  background: var(--dsw-specific-menu);
+  box-shadow:
+    0 0 1px 0 rgba(0, 0, 0, 0.2),
+    0 0 4px 0 rgba(0, 0, 0, 0.02),
+    0 12px 32px 0 rgba(0, 0, 0, 0.08);
+  transform-origin: bottom left;
+  animation: modelMenuIn 180ms var(--ds-ease-in-out);
+}
+
+.linkInput {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-brand-primary);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  outline: none;
+
+  &::placeholder {
+    color: var(--dsw-alias-label-caption);
+  }
+
+  &:focus {
+    box-shadow: 0 0 0 1px var(--dsw-alias-brand-primary);
+  }
+}
+
+.linkConfirm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--dsw-alias-brand-primary);
+  color: var(--dsw-static-neutral-bluish-00);
+  cursor: pointer;
+  outline: none;
+  transition: filter var(--ds-transition-duration) var(--ds-ease-in-out);
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--dsw-alias-button-primary-fill);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.composerWrapper {
   position: relative;
   width: 100%;
 }
 
-.textarea,
-.mirror {
-  display: block;
-  box-sizing: border-box;
+/* 与原来的 textarea 对齐：两行起高，随内容增长；主题据此设置 .cm-content 最小高度 */
+.composer {
+  --composer-min-height: calc(var(--line-height) * 2 + var(--input-padding-top));
+  position: relative;
   width: 100%;
-  min-height: calc(var(--line-height) * 2 + var(--input-padding-top));
-  margin: 0;
-  padding: var(--input-padding-top) 12px 0 16px;
-  border: none;
-  font: inherit;
-  line-height: inherit;
-  font-variant-ligatures: no-contextual;
-  word-break: break-word;
-  white-space: pre-wrap;
-  overflow: auto;
-}
-
-.textarea {
-  position: absolute;
-  height: 100%;
-  resize: none;
-  outline: none;
-  overscroll-behavior: contain;
-  background-color: transparent;
-  color: var(--dsw-alias-label-primary);
-  caret-color: var(--dsw-alias-brand-text);
-
-  &::placeholder {
-    color: var(--dsw-alias-label-caption);
-    user-select: none;
-  }
 }
 
 /* 录音中由频谱接管第一行，隐藏正文但保留高度 */
-.textareaHidden {
+.composerHidden {
   visibility: hidden;
 }
 
 @media not all and (min-width: 440px) {
-  .textarea,
-  .mirror {
-    min-height: calc(var(--line-height) * 1.25 + var(--input-padding-top));
+  .composer {
+    --composer-min-height: calc(var(--line-height) * 1.25 + var(--input-padding-top));
   }
 }
 
-.mirror {
-  visibility: hidden;
-  pointer-events: none;
-  max-height: 336px;
+/* 渲染后链接的操作条：打开链接 / 编辑文本 / 编辑链接 */
+.composerLinkMenu {
+  position: fixed;
+  z-index: 960;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  box-sizing: border-box;
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  background: var(--dsw-specific-menu);
+  box-shadow:
+    0 0 1px 0 rgba(0, 0, 0, 0.2),
+    0 0 4px 0 rgba(0, 0, 0, 0.02),
+    0 12px 32px 0 rgba(0, 0, 0, 0.08);
+  animation: modelMenuIn 180ms var(--ds-ease-in-out);
+}
+
+.composerLinkEditor {
+  gap: 6px;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+}
+
+.composerLinkAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--ds-transition-duration) var(--ds-ease-in-out);
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--dsw-alias-button-primary-fill);
+  }
+}
+
+.composerLinkDivider {
+  width: 1px;
+  height: 18px;
+  flex-shrink: 0;
+  background: var(--dsw-alias-border-l2);
 }
 
 @media not all and (min-width: 768px) {
@@ -225,11 +499,12 @@
     max-height: calc(var(--app-viewport-height, 100dvh) - 120px);
   }
 
-  .textareaWrapper {
+  .composerWrapper {
     min-height: 0;
   }
 
   .attachments,
+  .toolbar,
   .functionRow {
     flex-shrink: 0;
   }

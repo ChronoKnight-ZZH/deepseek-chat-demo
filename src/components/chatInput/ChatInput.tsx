@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { IconPaperclipOutline16, IconSendOutline16, IconStopFill16 } from '../base/icons.js'
 import { setSearch, setThinking, useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
@@ -22,6 +22,9 @@ import { DragMask, useFileDrop } from './DragMask.js'
 import { showToast } from '../base/toastState.js'
 import { ACCEPT, useUploads } from '../../services/attachments.js'
 import { DraftAttachments } from './DraftAttachments.js'
+import { FormatToolbar } from './FormatToolbar.js'
+import { MarkdownComposer, type ComposerHandle } from './MarkdownComposer.js'
+import type { FormatResult, Selection } from './markdownFormat.js'
 import { useVoiceInput } from './useVoiceInput.js'
 import { VoiceButton } from './VoiceButton.js'
 import { Spectrum } from './Spectrum.js'
@@ -54,8 +57,29 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const thinkingRun = useToggleAnimation(thinking)
   const searchRun = useToggleAnimation(search)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const composerRef = useRef<ComposerHandle>(null)
   const togglesRef = useRef<HTMLDivElement>(null)
+  const [selection, setSelection] = useState<Selection>({ start: 0, end: 0 })
+  const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null)
+
+  // 只有选中文本时才显示格式工具栏，位置跟随选区在视口中的包围盒
+  useLayoutEffect(() => {
+    if (selection.end <= selection.start) {
+      setSelectionRect(null)
+      return
+    }
+    const update = () => {
+      setSelectionRect(composerRef.current?.getSelectionRect() ?? null)
+    }
+    update()
+    window.addEventListener('resize', update)
+    // 捕获阶段监听，编辑器内部滚动也能同步位置
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [selection])
 
   useLayoutEffect(() => {
     const toggles = togglesRef.current
@@ -104,15 +128,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
 
   /** 转写结果插入到光标处，并把光标移到插入内容之后 */
   const voice = useVoiceInput((transcript) => {
-    const textarea = textareaRef.current
-    const current = getDraft(sessionId).text
-    const start = textarea?.selectionStart ?? current.length
-    const end = textarea?.selectionEnd ?? current.length
-    setText(current.slice(0, start) + transcript + current.slice(end))
-    requestAnimationFrame(() => {
-      textarea?.focus({ preventScroll: true })
-      textarea?.setSelectionRange(start + transcript.length, start + transcript.length)
-    })
+    composerRef.current?.insertText(transcript)
   })
 
   // 欢迎页导入后会话 ID 不变，不能依赖卸载取消语音；订阅开始事件也覆盖快速完成的导入。
@@ -147,58 +163,58 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     }
     stopReadAloud()
     if (isMobile) {
-      textareaRef.current?.blur()
+      composerRef.current?.blur()
     } else {
-      textareaRef.current?.focus()
+      composerRef.current?.focus()
     }
   }
+
+  const getComposerSelection = useCallback(
+    () => composerRef.current?.getSelection() ?? { start: 0, end: 0 },
+    []
+  )
+
+  const applyComposerFormat = useCallback((result: FormatResult) => {
+    composerRef.current?.applyEdit(result)
+  }, [])
 
   return (
     <div
       className={clsx(styles.wrapper, sessionId === null ? styles.home : styles.session)}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
-          textareaRef.current?.focus({ preventScroll: true })
+          composerRef.current?.focus()
         }
       }}
     >
       <DraftAttachments items={attachments} onRetry={retryFile} onRemove={removeFile} />
-      <div className={styles.textareaWrapper}>
-        <textarea
-          ref={textareaRef}
-          className={clsx(styles.textarea, recording && isMobile && styles.textareaHidden)}
+      {/* 格式工具栏：仅在选中输入框内文本时浮在选区附近 */}
+      {selection.end > selection.start && selectionRect ? (
+        <FormatToolbar
+          value={text}
+          selection={selection}
+          getSelection={getComposerSelection}
+          onApply={applyComposerFormat}
+          anchor={selectionRect}
+          disabled={importingHistory || voice.status !== 'idle'}
+        />
+      ) : null}
+      {/* 输入框 */}
+      <div className={styles.composerWrapper}>
+        <MarkdownComposer
+          ref={composerRef}
+          value={text}
+          onChange={setText}
+          onSelectionChange={setSelection}
+          onSubmit={send}
+          onPasteFiles={acceptFiles}
           placeholder={t('chatInputPlaceholderChat')}
-          rows={2}
+          disabled={importingHistory}
           // 移动端不自动聚焦，避免一打开就弹出键盘
           autoFocus={!isMobile}
-          disabled={importingHistory}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onMouseDown={(event) => {
-            // 首次点击时手动聚焦，避免 Safari 把整个页面滚到输入框位置。
-            if (isMobile && event.button === 0 && document.activeElement !== event.currentTarget) {
-              event.preventDefault()
-              event.currentTarget.focus({ preventScroll: true })
-            }
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault()
-              send()
-            }
-          }}
-          onPaste={(event) => {
-            const files = Array.from(event.clipboardData.files)
-            if (files.length > 0) {
-              event.preventDefault()
-              acceptFiles(files)
-            }
-          }}
+          className={clsx(recording && isMobile && styles.composerHidden)}
         />
         {recording && isMobile ? <Spectrum getAnalyser={voice.getAnalyser} /> : null}
-        <div className={styles.mirror} aria-hidden>
-          {`${text}\n`}
-        </div>
       </div>
       <div className={styles.functionRow}>
         {/* 模型选择 + 深度思考 / 智能搜索开关，tooltip 在按钮上方 */}

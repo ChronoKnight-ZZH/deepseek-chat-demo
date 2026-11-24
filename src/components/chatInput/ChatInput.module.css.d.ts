@@ -8,9 +8,30 @@ declare const styles: {
   readonly uploading: string
   readonly spin: string
   readonly failed: string
-  readonly textareaWrapper: string
-  readonly textarea: string
-  readonly mirror: string
+  readonly attachmentFailed: string
+  readonly failedStatic: string
+  readonly failedReason: string
+  readonly invalidRemove: string
+  readonly toolbar: string
+  readonly toolbarButton: string
+  readonly boldIcon: string
+  readonly italicIcon: string
+  readonly blockTrigger: string
+  readonly blockTriggerOpen: string
+  readonly blockArrow: string
+  readonly blockMenu: string
+  readonly blockOption: string
+  readonly blockOptionSelected: string
+  readonly linkPopover: string
+  readonly linkInput: string
+  readonly linkConfirm: string
+  readonly composerWrapper: string
+  readonly composer: string
+  readonly composerHidden: string
+  readonly composerLinkMenu: string
+  readonly composerLinkEditor: string
+  readonly composerLinkAction: string
+  readonly composerLinkDivider: string
   readonly functionRow: string
   readonly toggles: string
   readonly collapsedToggles: string

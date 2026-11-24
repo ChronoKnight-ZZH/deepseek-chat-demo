@@ -104,6 +104,25 @@ export const IconDownloadOutline16 = () => (
   </svg>
 )
 
+/** 新窗口打开：外框 + 右上箭头 */
+export const IconExternalLinkOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M9.4 2.3h4.3v4.3M13.55 2.45 8.2 7.8"
+      stroke="currentColor"
+      strokeWidth={1.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M6.6 3.2H4.4c-.8 0-1.5.7-1.5 1.5v6.9c0 .8.7 1.5 1.5 1.5h6.9c.8 0 1.5-.7 1.5-1.5v-2.2"
+      stroke="currentColor"
+      strokeWidth={1.4}
+      strokeLinecap="round"
+    />
+  </svg>
+)
+
 export const IconEyeOutline16 = () => (
   <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path

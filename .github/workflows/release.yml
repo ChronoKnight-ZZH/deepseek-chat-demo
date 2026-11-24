@@ -1,4 +1,4 @@
-name: Create Release and Upload Assets
+name: Create Release, Upload Assets and Deploy Pages
 
 on:
   push:
@@ -7,8 +7,16 @@ on:
 
 permissions:
   contents: write
+  pages: write      # 允许部署到 GitHub Pages
+  id-token: write   # 允许验证部署请求
+
+# 确保同一时间只有一个 Pages 部署任务在运行
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
+  # 任务 1：构建、打包并创建 Release
   build-and-release:
     runs-on: ubuntu-latest
     steps:
@@ -29,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build project
+      - name: Build project for Release
         run: pnpm run build
 
       - name: Zip Build Output
@@ -41,3 +49,50 @@ jobs:
         with:
           files: chat-demo-${{ github.ref_name }}.zip
           generate_release_notes: true
+
+  # 任务 2：构建并部署到 GitHub Pages
+  deploy-pages:
+    runs-on: ubuntu-latest
+    # 等待 Release 任务完成后再执行（也可以去掉 needs 让它们并行运行）
+    needs: build-and-release 
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm' 
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 关键步骤：带上 /dschat/demo 后缀进行构建
+      # 注意：项目使用 rspack，基底路径通过 BASE_PATH 环境变量传给 rspack.config.ts
+      - name: Build project for Pages
+        run: pnpm run build
+        env:
+          BASE_PATH: /dschat/demo/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist' # 确保这里是你打包后的产物目录
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

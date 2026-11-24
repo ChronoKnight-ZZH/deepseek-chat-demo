@@ -1,0 +1,107 @@
+/*
+ * 输入框 Markdown 渲染样式。
+ * 语法标记由 CodeMirror 的 replace 装饰隐藏，这里只负责富文本外观。
+ */
+
+.cm-content .cm-md-strong {
+  font-weight: 650;
+}
+
+.cm-content .cm-md-em {
+  font-style: italic;
+}
+
+.cm-content .cm-md-strike {
+  text-decoration: line-through;
+}
+
+.cm-content .cm-md-code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background-color: var(--dsw-alias-bg-skeleton);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+/* 链接：蓝色文字 + 前置地球图标，点击打开操作弹窗 */
+.cm-content .cm-md-link {
+  color: var(--dsw-alias-brand-text);
+  cursor: pointer;
+}
+
+.cm-content .cm-md-link::before {
+  content: '';
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 2px;
+  vertical-align: -0.125em;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='M2 8h12M8 2c2.2 2.4 2.2 9.6 0 12M8 2c-2.2 2.4-2.2 9.6 0 12'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='M2 8h12M8 2c2.2 2.4 2.2 9.6 0 12M8 2c-2.2 2.4-2.2 9.6 0 12'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.cm-content .cm-line.cm-md-h1 {
+  font-size: 24px;
+  line-height: 34px;
+  font-weight: 650;
+}
+
+.cm-content .cm-line.cm-md-h2 {
+  font-size: 20px;
+  line-height: 30px;
+  font-weight: 650;
+}
+
+.cm-content .cm-line.cm-md-h3 {
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 650;
+}
+
+.cm-content .cm-line.cm-md-h4,
+.cm-content .cm-line.cm-md-h5,
+.cm-content .cm-line.cm-md-h6 {
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 650;
+}
+
+.cm-content .cm-line.cm-md-quote {
+  border-left: 2px solid var(--dsw-alias-label-caption);
+  padding-left: 10px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.cm-content .cm-line.cm-md-bullet {
+  padding-left: 2px;
+}
+
+.cm-content .cm-line.cm-md-bullet::before {
+  content: '•';
+  display: inline-block;
+  width: 1em;
+  margin-right: 2px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.cm-content .cm-md-list-mark {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.cm-content .cm-line.cm-md-codeblock {
+  padding-left: 10px;
+  background-color: var(--dsw-alias-bg-skeleton);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 13.5px;
+  line-height: 22px;
+}
+
+.cm-content .cm-line.cm-md-rule::after {
+  content: '';
+  display: block;
+  margin: 10px 0;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}

@@ -16,6 +16,12 @@ const cssLoader = {
   options: { targets },
 }
 
+/** 部署目录，来自 BASE_PATH 环境变量，如 '/dschat/demo/'；未设置时为站点根目录 */
+const basePath = (() => {
+  const value = process.env.BASE_PATH?.trim().replace(/^\/+|\/+$/g, '')
+  return value ? `/${value}/` : '/'
+})()
+
 type ConfigOptions = {
   /** 公开 API 的地址，注入为 __API_ORIGIN__ */
   apiOrigin?: string
@@ -101,4 +107,4 @@ export const createConfig = ({
 })
 
 // eslint-disable-next-line import/no-default-export
-export default defineConfig(createConfig())
+export default defineConfig(createConfig({ basePath }))

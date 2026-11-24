@@ -109,6 +109,7 @@ export const createConfig = ({ env, basePath, devServer }: ConfigOptions = {}): 
     // 会话地址是真实路径（/chat/<id>），刷新和直链都要回退到 index.html
     devServer: {
       port: cfg.devPort,
+      server: cfg.devHttps ? 'https' : undefined,
       historyApiFallback: true,
       // 开发环境把同源接口前缀代理到本地后端；生产环境由 Nginx 反代 api 子域名
       proxy: dev

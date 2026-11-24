@@ -41,6 +41,8 @@ export type EnvConfig = {
   devProxyTarget: string
   /** devServer 端口 */
   devPort: number
+  /** 本地开发是否启用 HTTPS（自签证书）；仅 devServer 使用 */
+  devHttps: boolean
 }
 
 /** 两个环境的默认地址。改域名/端口只动这里，或直接在 `.env.production` 里覆盖。 */
@@ -56,6 +58,7 @@ const PROFILES: Record<AppEnv, EnvConfig> = {
     basePath: '/',
     devProxyTarget: 'http://127.0.0.1:3000',
     devPort: 8090,
+    devHttps: false,
   },
   production: {
     appEnv: 'production',
@@ -70,6 +73,7 @@ const PROFILES: Record<AppEnv, EnvConfig> = {
     basePath: '/',
     devProxyTarget: 'http://127.0.0.1:3000',
     devPort: 8090,
+    devHttps: false,
   },
 }
 
@@ -252,6 +256,7 @@ export const resolveEnvConfig = (env: NodeJS.ProcessEnv = process.env): EnvConfi
     basePath: toBasePath(basePathValue),
     devProxyTarget: resolveOrigin(devProxyTarget, profile.devProxyTarget),
     devPort: Number.isSafeInteger(devPort) && devPort > 0 ? devPort : profile.devPort,
+    devHttps: (pick(env, fileVars, ['DEV_HTTPS']) ?? String(profile.devHttps)) === 'true',
   }
 }
 

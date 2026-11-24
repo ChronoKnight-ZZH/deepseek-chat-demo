@@ -8,10 +8,13 @@ export type Locale = 'zh-CN' | 'en-US'
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
+/** 发送消息的快捷键：回车发送、Shift+回车发送，或关闭快捷键发送 */
+export type SendKey = 'enter' | 'shift-enter' | 'off'
+
 /** 系统提示词的默认内容；用户可在设置中修改或关闭 */
 export const DEFAULT_SYSTEM_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'
 
-/** 本机设置，存 localStorage：API Key、语言、主题、位置、朗读音色、模型、深度思考与智能搜索开关、侧边栏收起状态、系统提示词及开关 */
+/** 本机设置，存 localStorage：API Key、语言、主题、位置、朗读音色、模型、深度思考与智能搜索开关、侧边栏收起状态、系统提示词及开关、发送快捷键 */
 type Settings = {
   apiKey: string | null
   locale: Locale
@@ -26,6 +29,7 @@ type Settings = {
   /** 自定义系统提示词：开启后随每次对话发送 */
   systemPrompt: string
   systemPromptEnabled: boolean
+  sendKey: SendKey
 }
 
 const KEYS = {
@@ -40,6 +44,7 @@ const KEYS = {
   siderCollapsed: 'chat-demo:sider-collapsed',
   systemPrompt: 'chat-demo:system-prompt',
   systemPromptEnabled: 'chat-demo:system-prompt-enabled',
+  sendKey: 'chat-demo:send-key',
 } as const
 
 const read = (key: string) => {
@@ -106,6 +111,12 @@ const initialModel = (): ChatModel =>
 /** 未保存过时使用内置的助手身份说明 */
 const initialSystemPrompt = (): string => read(KEYS.systemPrompt) ?? DEFAULT_SYSTEM_PROMPT
 
+/** 未保存过时保持原有行为：回车发送 */
+const initialSendKey = (): SendKey => {
+  const saved = read(KEYS.sendKey)
+  return saved === 'enter' || saved === 'shift-enter' || saved === 'off' ? saved : 'enter'
+}
+
 export const useSettings = create<Settings>(() => ({
   apiKey: read(KEYS.apiKey),
   locale: initialLocale(),
@@ -119,6 +130,7 @@ export const useSettings = create<Settings>(() => ({
   systemPrompt: initialSystemPrompt(),
   // 未保存过时保持原有行为：始终携带系统提示词
   systemPromptEnabled: read(KEYS.systemPromptEnabled) !== 'false',
+  sendKey: initialSendKey(),
 }))
 
 export const setLocale = (locale: Locale) => {
@@ -175,4 +187,9 @@ export const setSystemPrompt = (systemPrompt: string) => {
 export const setSystemPromptEnabled = (systemPromptEnabled: boolean) => {
   write(KEYS.systemPromptEnabled, String(systemPromptEnabled))
   useSettings.setState({ systemPromptEnabled })
+}
+
+export const setSendKey = (sendKey: SendKey) => {
+  write(KEYS.sendKey, sendKey)
+  useSettings.setState({ sendKey })
 }

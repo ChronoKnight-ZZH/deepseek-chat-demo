@@ -91,14 +91,6 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-.cm-content .cm-line.cm-md-codeblock {
-  padding-left: 10px;
-  background-color: var(--dsw-alias-bg-skeleton);
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 13.5px;
-  line-height: 22px;
-}
-
 .cm-content .cm-line.cm-md-rule::after {
   content: '';
   display: block;

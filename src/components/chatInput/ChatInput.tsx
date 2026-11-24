@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { IconPaperclipOutline16, IconSendOutline16, IconStopFill16 } from '../base/icons.js'
 import { setSearch, setThinking, useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
@@ -24,7 +24,8 @@ import { ACCEPT, useUploads } from '../../services/attachments.js'
 import { DraftAttachments } from './DraftAttachments.js'
 import { FormatToolbar } from './FormatToolbar.js'
 import { MarkdownComposer, type ComposerHandle } from './MarkdownComposer.js'
-import type { FormatResult, Selection } from './markdownFormat.js'
+import type { FormatResult } from './markdownFormat.js'
+import { useFormatToolbar } from './useFormatToolbar.js'
 import { useVoiceInput } from './useVoiceInput.js'
 import { VoiceButton } from './VoiceButton.js'
 import { Spectrum } from './Spectrum.js'
@@ -32,9 +33,6 @@ import { useTranslate } from '../../i18n/index.js'
 import { ModelSelect } from './ModelSelect.js'
 import { SearchToggleIcon, ThinkingToggleIcon, useToggleAnimation } from './ToggleIcons.js'
 import styles from './ChatInput.module.css'
-
-/** 选区稳定多久后显示格式工具栏，避免拖选过程中反复闪现 */
-const TOOLBAR_SHOW_DELAY = 160
 
 /** 输入框：自适应高度的文本框 + 文件 + 深度思考与智能搜索开关 + 语音输入 + 发送 / 停止 */
 export const ChatInput = memo(function ChatInput({ sessionId }: { sessionId: string | null }) {
@@ -56,44 +54,14 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const isMobile = useIsMobile()
   const search = useSettings((state) => state.search)
   const model = useSettings((state) => state.model)
+  const sendKey = useSettings((state) => state.sendKey)
   // 动画由真实开关状态驱动：开启正向、关闭反向，避免点击与状态不同步。
   const thinkingRun = useToggleAnimation(thinking)
   const searchRun = useToggleAnimation(search)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<ComposerHandle>(null)
   const togglesRef = useRef<HTMLDivElement>(null)
-  const [selection, setSelection] = useState<Selection>({ start: 0, end: 0 })
-  const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null)
-  const toolbarVisibleRef = useRef(false)
-
-  // 只有选中文本时才显示格式工具栏，位置跟随选区在视口中的包围盒
-  useLayoutEffect(() => {
-    if (selection.end <= selection.start) {
-      toolbarVisibleRef.current = false
-      setSelectionRect(null)
-      return
-    }
-    const update = () => {
-      const rect = composerRef.current?.getSelectionRect() ?? null
-      toolbarVisibleRef.current = rect !== null
-      setSelectionRect(rect)
-    }
-    // 拖选时选区持续变化，停顿片刻再出现；已经显示时立即跟随，不做延迟
-    let timer: number | undefined
-    if (toolbarVisibleRef.current) {
-      update()
-    } else {
-      timer = window.setTimeout(update, TOOLBAR_SHOW_DELAY)
-    }
-    window.addEventListener('resize', update)
-    // 捕获阶段监听，编辑器内部滚动也能同步位置
-    window.addEventListener('scroll', update, true)
-    return () => {
-      window.clearTimeout(timer)
-      window.removeEventListener('resize', update)
-      window.removeEventListener('scroll', update, true)
-    }
-  }, [selection])
+  const { selection, selectionRect, onSelectionChange } = useFormatToolbar(composerRef)
 
   useLayoutEffect(() => {
     const toggles = togglesRef.current
@@ -219,8 +187,9 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
           ref={composerRef}
           value={text}
           onChange={setText}
-          onSelectionChange={setSelection}
+          onSelectionChange={onSelectionChange}
           onSubmit={send}
+          sendKey={sendKey}
           onPasteFiles={acceptFiles}
           placeholder={t('chatInputPlaceholderChat')}
           disabled={importingHistory}

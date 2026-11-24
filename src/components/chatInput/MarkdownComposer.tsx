@@ -22,6 +22,7 @@ import type { SyntaxNode } from '@lezer/common'
 import { EditorView, keymap, placeholder as placeholderExtension } from '@codemirror/view'
 import { GFM } from '@lezer/markdown'
 import { sanitizeUrl } from '../markdown/Link.js'
+import type { SendKey } from '../../services/settings.js'
 import { ComposerLinkMenu } from './ComposerLinkMenu.js'
 import { markdownRendering, type ComposerLink } from './composerMarkdown.js'
 import styles from './ChatInput.module.css'
@@ -49,11 +50,17 @@ type MarkdownComposerProps = {
   onChange: (value: string) => void
   onSelectionChange?: (selection: ComposerSelection) => void
   onSubmit: () => void
+  /** 触发发送的快捷键；列表内回车始终用于续写列表 */
+  sendKey: SendKey
   onPasteFiles: (files: File[]) => void
   placeholder: string
   disabled?: boolean
   autoFocus?: boolean
   className?: string
+  /** 编辑器内容区的无障碍名称 */
+  ariaLabel?: string
+  /** 按下 Esc 时触发；用于消息编辑框退出编辑态 */
+  onEscape?: () => void
 }
 
 /** 等宽字体和正文尺寸与原来的 textarea 对齐，去掉 CodeMirror 自带的外边距 */
@@ -68,14 +75,14 @@ const composerTheme = EditorView.theme({
   },
   '.cm-scroller': {
     overflowY: 'auto',
-    maxHeight: '336px',
+    maxHeight: 'var(--composer-max-height, 336px)',
     fontFamily: 'inherit',
     lineHeight: 'inherit',
   },
   '.cm-content': {
     boxSizing: 'border-box',
-    minHeight: 'var(--composer-min-height)',
-    padding: 'var(--input-padding-top) 12px 0 16px',
+    minHeight: 'var(--composer-min-height, 60px)',
+    padding: 'var(--input-padding-top, 12px) 12px 0 16px',
     fontFamily: 'inherit',
     caretColor: 'var(--dsw-alias-brand-text)',
   },
@@ -109,11 +116,14 @@ const MarkdownComposerInner = (
     onChange,
     onSelectionChange,
     onSubmit,
+    sendKey,
     onPasteFiles,
     placeholder,
     disabled = false,
     autoFocus = false,
     className,
+    ariaLabel,
+    onEscape,
   }: MarkdownComposerProps,
   ref: ForwardedRef<ComposerHandle>
 ) => {
@@ -133,18 +143,24 @@ const MarkdownComposerInner = (
     onChange,
     onSelectionChange,
     onSubmit,
+    sendKey,
     onPasteFiles,
     placeholder,
     disabled,
+    ariaLabel,
+    onEscape,
   })
   propsRef.current = {
     value,
     onChange,
     onSelectionChange,
     onSubmit,
+    sendKey,
     onPasteFiles,
     placeholder,
     disabled,
+    ariaLabel,
+    onEscape,
   }
 
   const linkMenuRef = useRef<(link: ComposerLink, anchor: DOMRect) => void>(() => {})
@@ -168,13 +184,28 @@ const MarkdownComposerInner = (
           }),
           composerTheme,
           EditorView.lineWrapping,
+          EditorView.contentAttributes.of(
+            propsRef.current.ariaLabel ? { 'aria-label': propsRef.current.ariaLabel } : {}
+          ),
           editable.of(EditorView.editable.of(!propsRef.current.disabled)),
           placeholderSlot.of(placeholderExtension(propsRef.current.placeholder)),
           keymap.of([
             {
+              key: 'Escape',
+              run: () => {
+                const { onEscape } = propsRef.current
+                if (!onEscape) {
+                  return false
+                }
+                onEscape()
+                return true
+              },
+            },
+            {
               key: 'Enter',
               run: (view) => {
-                if (propsRef.current.disabled) {
+                const { disabled, sendKey, onSubmit } = propsRef.current
+                if (disabled) {
                   return false
                 }
                 // 列表内回车续写下一项，有序列表编号自动递增；空列表项则退出列表
@@ -182,11 +213,27 @@ const MarkdownComposerInner = (
                 if (isInsideList(view.state, from) && insertNewlineContinueMarkup(view)) {
                   return true
                 }
-                propsRef.current.onSubmit()
+                if (sendKey !== 'enter') {
+                  return insertNewline(view)
+                }
+                onSubmit()
                 return true
               },
             },
-            { key: 'Shift-Enter', run: insertNewline },
+            {
+              key: 'Shift-Enter',
+              run: (view) => {
+                const { disabled, sendKey, onSubmit } = propsRef.current
+                if (disabled) {
+                  return false
+                }
+                if (sendKey !== 'shift-enter') {
+                  return insertNewline(view)
+                }
+                onSubmit()
+                return true
+              },
+            },
             // 显式覆盖撤销/重做，避免 Windows 上的 Ctrl+Shift+Z 落到浏览器原生重做
             { key: 'Mod-z', run: undo, preventDefault: true },
             { key: 'Mod-Shift-z', run: redo, preventDefault: true },
@@ -300,6 +347,13 @@ const MarkdownComposerInner = (
       effects: compartmentsRef.current.placeholder.reconfigure(placeholderExtension(placeholder)),
     })
   }, [placeholder])
+
+  // 切换语言后同步无障碍名称
+  useEffect(() => {
+    if (ariaLabel) {
+      viewRef.current?.contentDOM.setAttribute('aria-label', ariaLabel)
+    }
+  }, [ariaLabel])
 
   useImperativeHandle(
     ref,

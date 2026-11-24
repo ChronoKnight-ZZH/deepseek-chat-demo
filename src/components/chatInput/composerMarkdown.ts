@@ -128,16 +128,6 @@ const buildDecorations = (view: EditorView): DecorationSet => {
             }
             break
           }
-          case 'FencedCode': {
-            const last = state.doc.lineAt(node.to)
-            for (let line = state.doc.lineAt(node.from); ; line = state.doc.line(line.number + 1)) {
-              addLine(line.from, 'cm-md-codeblock')
-              if (line.number >= last.number) {
-                break
-              }
-            }
-            break
-          }
           case 'HorizontalRule':
             addLine(node.from, 'cm-md-rule')
             hide(node.from, node.to)
@@ -158,6 +148,7 @@ const buildDecorations = (view: EditorView): DecorationSet => {
           case 'StrikethroughMark':
           case 'CodeMark':
           case 'CodeInfo':
+            // 只隐藏语法标记，代码块内容按普通文本显示，不绘制代码框
             hide(node.from, node.to)
             break
           case 'Link': {

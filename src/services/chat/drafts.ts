@@ -6,6 +6,7 @@ import {
   isImage,
   resolveMimeType,
   uploadAttachment,
+  useUploads,
   validateFiles,
   type UploadTask,
 } from '../attachments.js'
@@ -18,6 +19,9 @@ export type DraftAttachment = {
   isImage: boolean
   previewUrl: string | null
 }
+
+/** 已上传完成、可以随消息提交的附件 */
+export type PreparedFile = FileAttachment & { serverId: string; blob: Blob }
 
 type Draft = { text: string; attachments: DraftAttachment[] }
 
@@ -80,8 +84,24 @@ export const addDraftFiles = (
     }
   })
   updateDraft(sessionId, (draft) => ({ ...draft, attachments: [...draft.attachments, ...added] }))
-  added.forEach((attachment) => upload(attachment, apiKey))
+  // 没有 API Key 时只保留本地附件，不上传文件数据；配置 Key 后再补传。
+  if (apiKey) {
+    added.forEach((attachment) => upload(attachment, apiKey))
+  }
   return null
+}
+
+/** 配置 API Key 后，补传还没有上传任务的附件。 */
+export const uploadPendingDraftAttachments = (sessionId: string | null, apiKey: string) => {
+  if (!apiKey) {
+    return
+  }
+  const tasks = useUploads.getState().tasks
+  for (const attachment of getDraft(sessionId).attachments) {
+    if (!tasks[attachment.id]) {
+      upload(attachment, apiKey)
+    }
+  }
 }
 
 export const retryDraftAttachment = (
@@ -90,7 +110,7 @@ export const retryDraftAttachment = (
   apiKey: string
 ) => {
   const attachment = getDraft(sessionId).attachments.find((item) => item.id === attachmentId)
-  if (attachment) {
+  if (attachment && apiKey) {
     upload(attachment, apiKey)
   }
 }
@@ -101,7 +121,7 @@ export const prepareDraftMessage = (draft: Draft, tasks: Record<string, UploadTa
   if (!text && draft.attachments.length === 0) {
     return null
   }
-  const files: (FileAttachment & { serverId: string; blob: Blob })[] = []
+  const files: PreparedFile[] = []
   for (const attachment of draft.attachments) {
     const task = tasks[attachment.id]
     if (task?.status !== 'done' || !task.serverId) {

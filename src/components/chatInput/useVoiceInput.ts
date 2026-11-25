@@ -72,10 +72,16 @@ export const useVoiceInput = (onText: (text: string) => void) => {
       if (operationRef.current !== operation || !audio) {
         return
       }
+      // 没有 API Key 时不上传录音，仅提示配置后再使用语音输入。
+      const apiKey = useSettings.getState().apiKey
+      if (!apiKey) {
+        showToast({ key: 'apiKeyRequired' })
+        return
+      }
       controller = new AbortController()
       controllerRef.current = controller
       setStatus('transcribing')
-      const text = await transcribe(useSettings.getState().apiKey ?? '', audio, controller.signal)
+      const text = await transcribe(apiKey, audio, controller.signal)
       if (controller.signal.aborted || operationRef.current !== operation) {
         return
       }

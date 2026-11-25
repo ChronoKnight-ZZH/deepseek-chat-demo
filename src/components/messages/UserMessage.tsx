@@ -1,16 +1,33 @@
 import { useTranslate } from '../../i18n/index.js'
 import clsx from 'clsx'
-import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useIsMobile } from '../../app/viewport.js'
-import { IconChevronDownOutline14, IconEditOutline16 } from '../base/icons.js'
+import {
+  IconChevronDownOutline14,
+  IconEditOutline16,
+  IconPaperclipOutline16,
+} from '../base/icons.js'
 import { editMessage, retryUpload } from '../../services/chat/store.js'
 import { stopReadAloud } from '../../services/speech/readAloud.js'
 import { useSettings } from '../../services/settings.js'
 import type { UserMessage as UserMessageType } from '../../services/chat/types.js'
+import { ACCEPT, MAX_COUNT, MAX_SIZE_MB, useUploads } from '../../services/attachments.js'
+import {
+  addDraftFiles,
+  clearDraft,
+  EMPTY_DRAFT,
+  prepareDraftMessage,
+  removeDraftAttachment,
+  retryDraftAttachment,
+  uploadPendingDraftAttachments,
+  useDrafts,
+  type PreparedFile,
+} from '../../services/chat/drafts.js'
 import { Button } from '../base/Button.js'
 import { IconButton } from '../base/IconButton.js'
 import { Tooltip } from '../base/Tooltip.js'
-import { ensureApiKey } from '../settings/settingsDialogState.js'
+import { showToast } from '../base/toastState.js'
+import { DraftAttachments } from '../chatInput/DraftAttachments.js'
 import { FormatToolbar } from '../chatInput/FormatToolbar.js'
 import { MarkdownComposer, type ComposerHandle } from '../chatInput/MarkdownComposer.js'
 import type { FormatResult } from '../chatInput/markdownFormat.js'
@@ -29,30 +46,65 @@ import styles from './UserMessage.module.css'
 const COLLAPSED_LINES = 8
 const COLLAPSED_HEIGHT = COLLAPSED_LINES * 24
 
-/** 编辑框不支持粘贴上传，交给浏览器默认处理 */
-const ignorePasteFiles = () => {}
-
-/** 消息编辑框：与主输入框一致的 Markdown 渲染与格式工具栏 */
+/**
+ * 消息编辑框：与主输入框一致的 Markdown 渲染、格式工具栏、文件导入与图片粘贴。
+ * 新附件按编辑中的消息单独保存，随重新发送一起提交。
+ */
 const MessageEditor = ({
-  value,
-  onChange,
-  onSubmit,
+  sessionId,
+  messageId,
+  initialValue,
+  hasFiles,
   onCancel,
+  onSubmit,
   disabled,
-  canSend,
   sendKey,
 }: {
-  value: string
-  onChange: (value: string) => void
-  onSubmit: () => void
+  sessionId: string
+  messageId: string
+  initialValue: string
+  /** 原消息已有的附件，可配合空文本直接重新发送 */
+  hasFiles: boolean
   onCancel: () => void
+  onSubmit: (text: string, files: PreparedFile[]) => boolean
   disabled: boolean
-  canSend: boolean
   sendKey: 'enter' | 'shift-enter' | 'off'
 }) => {
   const t = useTranslate()
+  const [value, setValue] = useState(initialValue)
   const composerRef = useRef<ComposerHandle>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { selection, selectionRect, onSelectionChange } = useFormatToolbar(composerRef)
+  const draftKey = `edit:${sessionId}:${messageId}`
+  const attachments = useDrafts((state) => state.drafts.get(draftKey)?.attachments ?? EMPTY_DRAFT.attachments)
+  const apiKey = useSettings((state) => state.apiKey)
+  const canSend = !disabled && (value.trim() !== '' || hasFiles || attachments.length > 0)
+
+  const acceptFiles = (files: File[]) => {
+    const error = addDraftFiles(draftKey, files, useSettings.getState().apiKey ?? '')
+    if (error) {
+      showToast(error)
+    }
+  }
+
+  const retryFile = (id: string) => {
+    const key = useSettings.getState().apiKey
+    if (!key) {
+      showToast({ key: 'apiKeyRequired' })
+      return
+    }
+    retryDraftAttachment(draftKey, id, key)
+  }
+
+  // 配置 API Key 后补传之前只保存在本地的附件。
+  useEffect(() => {
+    if (apiKey) {
+      uploadPendingDraftAttachments(draftKey, apiKey)
+    }
+  }, [apiKey, draftKey])
+
+  // 取消编辑或提交后释放未发送的附件与上传任务。
+  useEffect(() => () => clearDraft(draftKey), [draftKey])
 
   const getSelection = useCallback(
     () => composerRef.current?.getSelection() ?? { start: 0, end: 0 },
@@ -62,8 +114,34 @@ const MessageEditor = ({
     composerRef.current?.applyEdit(result)
   }, [])
 
+  const submit = () => {
+    if (disabled) {
+      return
+    }
+    // 缺少 Key 时用轻提示限制发送，不弹出设置窗口。
+    if (!useSettings.getState().apiKey) {
+      showToast({ key: 'apiKeyRequired' })
+      return
+    }
+    const text = value.trim()
+    const prepared = prepareDraftMessage({ text, attachments }, useUploads.getState().tasks)
+    if (prepared) {
+      onSubmit(prepared.text, prepared.files)
+      return
+    }
+    // 未改动文字时仍可重新发送原消息及其附件。
+    if (attachments.length === 0 && hasFiles) {
+      onSubmit('', [])
+    }
+  }
+
   return (
     <div className={styles.editor}>
+      <DraftAttachments
+        items={attachments}
+        onRetry={retryFile}
+        onRemove={(id) => removeDraftAttachment(draftKey, id)}
+      />
       {selection.end > selection.start && selectionRect ? (
         <FormatToolbar
           value={value}
@@ -77,11 +155,11 @@ const MessageEditor = ({
       <MarkdownComposer
         ref={composerRef}
         value={value}
-        onChange={onChange}
+        onChange={setValue}
         onSelectionChange={onSelectionChange}
-        onSubmit={onSubmit}
+        onSubmit={submit}
         sendKey={sendKey}
-        onPasteFiles={ignorePasteFiles}
+        onPasteFiles={acceptFiles}
         placeholder=""
         disabled={disabled}
         autoFocus
@@ -90,12 +168,32 @@ const MessageEditor = ({
         className={styles.editorComposer}
       />
       <div className={styles.editorActions}>
-        <Button size="s" variant="outlined" onClick={onCancel}>
-          {t('cancel')}
-        </Button>
-        <Button size="s" disabled={!canSend} onClick={onSubmit}>
-          {t('send')}
-        </Button>
+        <IconButton
+          icon={<IconPaperclipOutline16 />}
+          tooltip={t('uploadFileTooltip', { count: MAX_COUNT, size: MAX_SIZE_MB })}
+          aria-label={t('uploadFile')}
+          disabled={disabled}
+          onClick={() => fileInputRef.current?.click()}
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          hidden
+          accept={ACCEPT}
+          onChange={(event) => {
+            acceptFiles(Array.from(event.target.files ?? []))
+            event.target.value = ''
+          }}
+        />
+        <div className={styles.editorButtons}>
+          <Button size="s" variant="outlined" onClick={onCancel}>
+            {t('cancel')}
+          </Button>
+          <Button size="s" disabled={!canSend} onClick={submit}>
+            {t('send')}
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -123,13 +221,11 @@ export const UserMessage = memo(function UserMessage({
 }) {
   const t = useTranslate()
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(message.content)
   const [expanded, setExpanded] = useState(false)
   const [collapsible, setCollapsible] = useState(false)
   const bubbleContentRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
   const sendKey = useSettings((state) => state.sendKey)
-  const canSend = !busy && (draft.trim() !== '' || message.files.length > 0)
 
   // 内容被编辑或从编辑态返回时重新判断是否需要折叠
   useLayoutEffect(() => {
@@ -153,11 +249,13 @@ export const UserMessage = memo(function UserMessage({
     setExpanded(false)
   }, [message.content])
 
-  const sendEdit = () => {
-    if (canSend && ensureApiKey() && editMessage(sessionId, message.id, draft.trim())) {
-      stopReadAloud()
-      setEditing(false)
+  const sendEdit = (text: string, files: PreparedFile[]) => {
+    if (!editMessage(sessionId, message.id, text, files)) {
+      return false
     }
+    stopReadAloud()
+    setEditing(false)
+    return true
   }
 
   return (
@@ -180,12 +278,13 @@ export const UserMessage = memo(function UserMessage({
       ) : null}
       {editing ? (
         <MessageEditor
-          value={draft}
-          onChange={setDraft}
+          sessionId={sessionId}
+          messageId={message.id}
+          initialValue={message.content}
+          hasFiles={message.files.length > 0}
           onSubmit={sendEdit}
           onCancel={() => setEditing(false)}
           disabled={busy}
-          canSend={canSend}
           // 移动端保留回车换行，避免误触发送
           sendKey={isMobile ? 'off' : sendKey}
         />
@@ -233,10 +332,7 @@ export const UserMessage = memo(function UserMessage({
                 tooltip={t('editMessage')}
                 tooltipPlacement="bottom"
                 disabled={busy}
-                onClick={() => {
-                  setDraft(message.content)
-                  setEditing(true)
-                }}
+                onClick={() => setEditing(true)}
               />
             </div>
             <BranchSwitcher versions={versions} disabled={busy} onSelect={onSelectVersion} />

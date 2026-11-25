@@ -1,4 +1,4 @@
-/* 会话内右侧居中的提示词快速跳转：收起为短横线，悬停展开为 300×380 列表 */
+/* 会话内右侧居中的提示词快速跳转：收起为短横线，悬停展开为宽度自适应、最宽 300 的列表 */
 .dock {
   position: absolute;
   top: 50%;
@@ -11,24 +11,27 @@
 }
 
 .panel {
+  /* 行高与最大行数：面板高度随提示词数量自适应，最多显示 8 行 */
+  --pn-row-height: 30px;
+  --pn-max-rows: 8;
+  top: 50px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: 44px;
-  max-height: 380px;
+  width: 32px;
+  max-height: calc(var(--pn-row-height) * var(--pn-max-rows) + 12px);
   overflow: hidden;
   border: 1px solid transparent;
   border-radius: 16px;
   background: transparent;
   box-shadow: none;
-  transition:
-    width 0.2s var(--ds-ease-in-out),
-    background-color 0.2s var(--ds-ease-in-out);
+  transition: background-color 0.2s var(--ds-ease-in-out);
 }
 
+/* 展开时宽度跟随提示词内容，只限制最大宽度 */
 .expanded {
-  width: 300px;
-  height: 380px;
+  width: max-content;
+  max-width: 300px;
   border-color: var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-base);
   box-shadow: var(--dsw-shadow-lv3);
@@ -56,13 +59,13 @@
   gap: 6px;
   box-sizing: border-box;
   width: 100%;
-  min-height: 40px;
-  padding: 0 10px;
+  min-height: var(--pn-row-height);
+  padding: 0 8px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
-  font: 400 15px/24px var(--dsw-font-family);
+  font: 400 13px/20px var(--dsw-font-family);
   text-align: left;
   cursor: pointer;
 }
@@ -84,11 +87,18 @@
   font-weight: 700;
 }
 
+/* 分支序号：浅蓝底圆角标签 */
 .branch {
   flex: none;
-  min-width: 3ch;
+  min-width: 22px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--dsw-alias-button-ghost-active-fill);
+  color: var(--dsw-alias-brand-text);
+  font-size: 11px;
+  line-height: 17px;
   font-variant-numeric: tabular-nums;
-  opacity: 0.9;
+  text-align: center;
 }
 
 .label {
@@ -128,7 +138,6 @@
 
 /* 收起状态只显示短横线 */
 .panel:not(.expanded) .row {
-  min-height: 32px;
   justify-content: flex-end;
   padding: 0;
 }
@@ -147,11 +156,13 @@
   height: 3px;
 }
 
-/* 内容过长时显示的完整提示词，固定宽度、最大高度 350px */
+/* 内容过长时显示的完整提示词：宽度随内容自适应（最宽 420px）、最大高度 350px */
 .tooltip {
   position: fixed;
   z-index: 1000;
   box-sizing: border-box;
+  width: max-content;
+  max-width: 420px;
   max-height: 350px;
   padding: 12px 16px;
   overflow-wrap: anywhere;
@@ -161,7 +172,9 @@
   background: var(--dsw-alias-tooltip-bg);
   box-shadow: var(--dsw-shadow-lv3);
   color: var(--dsw-alias-label-primary-foreground);
-  font: 13px/20px var(--dsw-font-family);
+  font: 11px/17px var(--dsw-font-family);
   white-space: pre-wrap;
+  /* 以右边缘为锚点，宽度变化时始终贴着面板左侧 */
+  transform: translateX(-100%);
   pointer-events: none;
 }

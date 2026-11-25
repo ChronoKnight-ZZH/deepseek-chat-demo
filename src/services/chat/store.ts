@@ -13,6 +13,7 @@ import {
   clearSentDraft,
   getDraft,
   prepareDraftMessage,
+  type PreparedFile,
 } from './drafts.js'
 import { createLatestReminder } from './latestReminder.js'
 import {
@@ -661,8 +662,13 @@ export const regenerateReply = (sessionId: string, messageId?: string) => {
   void streamReply(sessionId, reply, { history, question })
 }
 
-/** 编辑提问后新增同父版本，保留原文件；旧问题的所有回答与后续对话仍可切回。 */
-export const editMessage = (sessionId: string, messageId: string, content: string): boolean => {
+/** 编辑提问后新增同父版本，保留原文件并合并新附件；旧问题的所有回答与后续对话仍可切回。 */
+export const editMessage = (
+  sessionId: string,
+  messageId: string,
+  content: string,
+  files: PreparedFile[] = []
+): boolean => {
   if (get().importingHistory || deletingSessions.has(sessionId)) {
     return false
   }
@@ -674,14 +680,24 @@ export const editMessage = (sessionId: string, messageId: string, content: strin
   const index = path.findIndex((message) => message.id === messageId)
   const previous = path[index]
   const text = content.trim()
-  if (previous?.role !== 'user' || (!text && previous.files.length === 0)) {
+  if (previous?.role !== 'user' || (!text && previous.files.length === 0 && files.length === 0)) {
     return false
   }
   const question: UserMessage = {
     id: createId(),
     role: 'user',
     content: text,
-    files: previous.files,
+    files: [
+      ...previous.files,
+      ...files.map(({ id, serverId, name, size, isImage, mimeType }) => ({
+        id,
+        serverId,
+        name,
+        size,
+        isImage,
+        mimeType,
+      })),
+    ],
     createdAt: Date.now(),
   }
   const reply = createReply()
@@ -689,6 +705,12 @@ export const editMessage = (sessionId: string, messageId: string, content: strin
     ...appendBranch(s, path[index - 1]?.id ?? null, [question, reply]),
     updatedAt: Date.now(),
   }))
+  if (files.length > 0) {
+    pendingFiles.set(sessionId, [
+      ...(pendingFiles.get(sessionId) ?? []),
+      ...files.map(({ id, blob }) => ({ id, blob })),
+    ])
+  }
   persist(sessionId)
   void streamReply(sessionId, reply, { history: path.slice(0, index), question })
   return true

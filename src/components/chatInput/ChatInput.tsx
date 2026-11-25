@@ -12,15 +12,15 @@ import {
   removeDraftAttachment,
   retryDraftAttachment,
   setDraftText,
+  uploadPendingDraftAttachments,
   useDrafts,
 } from '../../services/chat/drafts.js'
 import { stopReadAloud } from '../../services/speech/readAloud.js'
 import { IconButton } from '../base/IconButton.js'
 import { Tooltip } from '../base/Tooltip.js'
-import { ensureApiKey } from '../settings/settingsDialogState.js'
 import { DragMask, useFileDrop } from './DragMask.js'
 import { showToast } from '../base/toastState.js'
-import { ACCEPT, useUploads } from '../../services/attachments.js'
+import { ACCEPT, MAX_COUNT, MAX_SIZE_MB, useUploads } from '../../services/attachments.js'
 import { DraftAttachments } from './DraftAttachments.js'
 import { FormatToolbar } from './FormatToolbar.js'
 import { MarkdownComposer, type ComposerHandle } from './MarkdownComposer.js'
@@ -55,6 +55,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const search = useSettings((state) => state.search)
   const model = useSettings((state) => state.model)
   const sendKey = useSettings((state) => state.sendKey)
+  const apiKey = useSettings((state) => state.apiKey)
   // 动画由真实开关状态驱动：开启正向、关闭反向，避免点击与状态不同步。
   const thinkingRun = useToggleAnimation(thinking)
   const searchRun = useToggleAnimation(search)
@@ -81,8 +82,9 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     // 模型名长度变化不改变容器宽度，需要随模型重新判断是否收起文字
   }, [t, model])
 
+  // 没有 API Key 时也允许粘贴图片、导入和拖入文件，但不上传文件数据。
   const acceptFiles = (files: File[]) => {
-    if (files.length === 0 || useChatStore.getState().importingHistory || !ensureApiKey()) {
+    if (files.length === 0 || useChatStore.getState().importingHistory) {
       return
     }
     const error = addDraftFiles(sessionId, files, useSettings.getState().apiKey ?? '')
@@ -92,9 +94,15 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   }
   const retryFile = useCallback(
     (id: string) => {
-      if (!useChatStore.getState().importingHistory && ensureApiKey()) {
-        retryDraftAttachment(sessionId, id, useSettings.getState().apiKey ?? '')
+      if (useChatStore.getState().importingHistory) {
+        return
       }
+      const key = useSettings.getState().apiKey
+      if (!key) {
+        showToast({ key: 'apiKeyRequired' })
+        return
+      }
+      retryDraftAttachment(sessionId, id, key)
     },
     [sessionId]
   )
@@ -125,6 +133,13 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     [cancelVoice]
   )
 
+  // 配置 API Key 后补传之前只保存在本地的附件。
+  useEffect(() => {
+    if (apiKey) {
+      uploadPendingDraftAttachments(sessionId, apiKey)
+    }
+  }, [apiKey, sessionId])
+
   // 移动端录音时用频谱替代输入框内容
   const recording = voice.status === 'recording'
 
@@ -132,15 +147,23 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const canSend = !importingHistory && !streaming && voice.status === 'idle' && draftReady
 
   const send = () => {
-    if (
-      useChatStore.getState().importingHistory ||
-      voice.status !== 'idle' ||
-      !prepareDraftMessage(getDraft(sessionId), useUploads.getState().tasks)
-    ) {
+    if (useChatStore.getState().importingHistory || voice.status !== 'idle') {
+      return
+    }
+    const draft = getDraft(sessionId)
+    if (!draft.text.trim() && draft.attachments.length === 0) {
+      return
+    }
+    // 缺少 Key 时用轻提示限制发送，不打断当前编辑。
+    if (!useSettings.getState().apiKey) {
+      showToast({ key: 'apiKeyRequired' })
+      return
+    }
+    if (!prepareDraftMessage(draft, useUploads.getState().tasks)) {
       return
     }
     // 文本与上传完成态由提交动作读取最新快照，不使用上一次渲染的草稿。
-    if (!ensureApiKey() || !sendMessage(sessionId)) {
+    if (!sendMessage(sessionId)) {
       return
     }
     stopReadAloud()
@@ -233,11 +256,9 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             status={voice.status}
             disabled={!voice.available}
             seconds={voice.seconds}
+            // 没有 Key 也允许开始录音，转写时会提示配置 Key（不上传音频）。
             onClick={() => {
-              if (
-                voice.status !== 'idle' ||
-                (!useChatStore.getState().importingHistory && ensureApiKey())
-              ) {
+              if (voice.status !== 'idle' || !useChatStore.getState().importingHistory) {
                 void voice.toggle()
               }
             }}
@@ -246,9 +267,10 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             size="m"
             tone="primary"
             icon={<IconPaperclipOutline16 />}
-            tooltip={t('uploadFile')}
+            tooltip={t('uploadFileTooltip', { count: MAX_COUNT, size: MAX_SIZE_MB })}
+            aria-label={t('uploadFile')}
             disabled={importingHistory}
-            onClick={() => ensureApiKey() && fileInputRef.current?.click()}
+            onClick={() => fileInputRef.current?.click()}
           />
           <input
             ref={fileInputRef}

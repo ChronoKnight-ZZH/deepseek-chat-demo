@@ -13,6 +13,16 @@ export const useIsMobile = () => useSyncExternalStore(subscribe, () => query.mat
 /** 非 Hook 场景下判断当前是否为移动端布局 */
 export const isMobileLayout = () => query.matches
 
+/** 宽于 1200px 才展示会话内的提示词导航 */
+const wideQuery = window.matchMedia('(min-width: 1201px)')
+
+const subscribeWide = (onChange: () => void) => {
+  wideQuery.addEventListener('change', onChange)
+  return () => wideQuery.removeEventListener('change', onChange)
+}
+
+export const useIsWide = () => useSyncExternalStore(subscribeWide, () => wideQuery.matches)
+
 /** 宽于 610px 时侧边栏以推开式占据布局，更窄时才使用抽屉浮层 */
 const pushSiderQuery = window.matchMedia('(min-width: 611px)')
 

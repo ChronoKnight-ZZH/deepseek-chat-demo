@@ -175,7 +175,13 @@
 
 .editorActions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
   margin: 6px 10px 10px;
+}
+
+.editorButtons {
+  display: flex;
+  gap: 8px;
 }

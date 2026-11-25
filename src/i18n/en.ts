@@ -221,10 +221,13 @@ export const en = {
   modelDeepseekV4ProDescription:
     'Stronger reasoning and writing for complex questions and long text',
   uploadFile: 'Upload files',
+  uploadFileTooltip: 'Upload files. Supports documents and images\nUp to {count} files, {size} MB each',
   chatInputStopButtonTooltip: 'Stop',
   uploadMaxMBSize: 'File exceeds the size limit ({size} MB). Please adjust and try again.',
   uploadMaxFiles: 'You can upload up to {count} files',
   uploadFileStatusUploading: 'Uploading...',
+  uploadFileStatusPending: 'Pending upload',
+  apiKeyRequired: 'Please configure your API Key first',
   uploadServerBusy: 'Server busy',
   uploadParseFailed: 'Parsing failed',
   uploadFileCountLimit: 'Uploaded file limit reached ({limit} files). ',

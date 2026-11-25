@@ -662,6 +662,32 @@ export const regenerateReply = (sessionId: string, messageId?: string) => {
   void streamReply(sessionId, reply, { history, question })
 }
 
+/** 更新某条用户消息的侧边导航短标题；传空值或空字符串等同于清除。 */
+export const updateMessageNavLabel = (
+  sessionId: string,
+  messageId: string,
+  navLabel: string | null
+) => {
+  if (get().importingHistory || deletingSessions.has(sessionId)) {
+    return false
+  }
+  const trimmed = navLabel?.trim() ?? ''
+  updateSession(sessionId, (session) => ({
+    ...session,
+    messages: session.messages.map((message) =>
+      message.id === messageId && message.role === 'user'
+        ? {
+            ...message,
+            navLabel: trimmed ? trimmed : undefined,
+          }
+        : message
+    ),
+    updatedAt: Date.now(),
+  }))
+  persist(sessionId)
+  return true
+}
+
 /** 编辑提问后新增同父版本，保留原文件并合并新附件；旧问题的所有回答与后续对话仍可切回。 */
 export const editMessage = (
   sessionId: string,

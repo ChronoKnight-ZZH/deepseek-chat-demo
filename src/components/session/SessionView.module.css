@@ -16,13 +16,44 @@
 }
 
 .title {
+  box-sizing: border-box;
   max-width: 480px;
-  padding: 8px 12px;
+  padding: 8px 16px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  border: 1px solid transparent;
+  border-radius: 999px;
   font: var(--dsw-font-s-strong-14);
   color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  transition: border-color 0.15s var(--ds-ease-in-out);
+
+  @media (hover: hover) {
+    &:hover {
+      border-color: var(--dsw-alias-border-l2);
+    }
+  }
+}
+
+.titleEditing,
+.titleEditing:hover {
+  border-color: var(--dsw-alias-brand-primary);
+  cursor: text;
+}
+
+/* input 默认盒模型与 div 不同，且自带 size 决定的固有宽度（约 20 字符），
+   不处理会导致切换编辑时胶囊宽度跳变。这里让宽度跟随内容，保证与 div 就地等宽 */
+input.title,
+input.title:hover {
+  field-sizing: content;
+  box-sizing: border-box;
+  min-width: 0;
+  background: transparent;
+}
+
+input.title:focus {
+  outline: none;
 }
 
 .withCollapsedSider {

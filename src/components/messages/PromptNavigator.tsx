@@ -36,6 +36,17 @@ const getPromptText = (message: UserMessage) => {
   return message.files.map((file) => file.name).join('、')
 }
 
+/** 展示的短标题：优先自定义 navLabel，否则退回到内容截断 */
+const getDisplayLabel = (message: UserMessage) => {
+  if (message.navLabel?.trim()) {
+    return truncate(message.navLabel.trim())
+  }
+  return truncate(getPromptText(message))
+}
+
+/** 悬停时显示的完整文字：navLabel（有就显示）或完整提示词 */
+const getFullText = (message: UserMessage) => message.navLabel?.trim() || getPromptText(message)
+
 const truncate = (text: string) => {
   const chars = Array.from(text)
   return chars.length > MAX_LABEL_LENGTH ? `${chars.slice(0, MAX_LABEL_LENGTH).join('')}…` : text
@@ -211,10 +222,11 @@ export const PromptNavigator = ({
   }
 
   // 鼠标在标签上停留 1 秒后，才弹出完整提示词。
-  const scheduleTip = (text: string, row: HTMLButtonElement) => {
+  const scheduleTip = (message: UserMessage, row: HTMLButtonElement) => {
     clearTimeout(tipTimerRef.current)
     setTip(null)
-    if (!open || !isOverflowing(text)) {
+    const fullText = getFullText(message)
+    if (!open || !isOverflowing(fullText)) {
       return
     }
     tipTimerRef.current = setTimeout(() => {
@@ -224,7 +236,7 @@ export const PromptNavigator = ({
       const rect = row.getBoundingClientRect()
       const panel = panelRef.current?.getBoundingClientRect()
       setTip({
-        text,
+        text: fullText,
         anchorLeft: (panel?.left ?? rect.left) - TIP_GAP,
         anchorTop: rect.top - 6,
       })
@@ -262,12 +274,12 @@ export const PromptNavigator = ({
       >
         <div ref={listRef} className={styles.list}>
           {prompts.map((message) => {
-            const text = getPromptText(message)
-            const label = truncate(text)
             const version = versions.get(message.id)
             const branch =
               version && version.ids.length > 1 ? `${version.index + 1}/${version.ids.length}` : ''
             const active = message.id === activeId
+            const displayLabel = getDisplayLabel(message)
+            const fullText = getFullText(message)
             return (
               <button
                 key={message.id}
@@ -275,16 +287,16 @@ export const PromptNavigator = ({
                 type="button"
                 className={clsx(styles.row, active && styles.active)}
                 aria-current={active ? 'true' : undefined}
-                aria-label={branch ? `${branch} ${text}` : text}
+                aria-label={branch ? `${branch} ${fullText}` : fullText}
                 onClick={() => {
                   setActiveId(message.id)
                   onJump(message.id)
                 }}
-                onMouseEnter={(event) => scheduleTip(text, event.currentTarget)}
+                onMouseEnter={(event) => scheduleTip(message, event.currentTarget)}
                 onMouseLeave={hideTip}
               >
                 {branch ? <span className={styles.branch}>{branch}</span> : null}
-                <span className={styles.label}>{label}</span>
+                <span className={styles.label}>{displayLabel}</span>
                 <span className={styles.dash} aria-hidden="true" />
               </button>
             )

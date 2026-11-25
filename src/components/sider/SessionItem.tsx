@@ -41,7 +41,11 @@ export const SessionItem = memo(function SessionItem({
         className={styles.renameInput}
         defaultValue={displayTitle}
         autoFocus
-        onFocus={(event) => event.target.select()}
+        onFocus={(event) => {
+          // 进入编辑时把光标放到末尾：既不整体选中，也避免浏览器把光标定位到开头
+          const { value } = event.target
+          event.target.setSelectionRange(value.length, value.length)
+        }}
         onBlur={(event) => finish(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) {

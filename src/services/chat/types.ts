@@ -38,6 +38,8 @@ export type UserMessage = MessageBranch & {
   content: string
   files: FileAttachment[]
   createdAt: number
+  /** 右侧提示词导航的自定义短标题；未设置时按 content 截断展示。 */
+  navLabel?: string
 }
 
 /** 思考块：thinking_delta 累积，签名随 signature_delta 到达；历史轮次的思考服务端会丢弃，不回传 */

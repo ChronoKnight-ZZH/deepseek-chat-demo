@@ -42,6 +42,8 @@ declare const styles: {
   readonly modelLabel: string
   readonly modelLabelSwap: string
   readonly modelArrow: string
+  readonly thinkingLevel: string
+  readonly thinkingOptionIcon: string
   readonly modelMenu: string
   readonly modelOption: string
   readonly modelOptionText: string

@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { IconPaperclipOutline16, IconSendOutline16, IconStopFill16 } from '../base/icons.js'
-import { setSearch, setThinking, useSettings } from '../../services/settings.js'
+import { setSearch, useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
 import {
@@ -31,7 +31,8 @@ import { VoiceButton } from './VoiceButton.js'
 import { Spectrum } from './Spectrum.js'
 import { useTranslate } from '../../i18n/index.js'
 import { ModelSelect } from './ModelSelect.js'
-import { SearchToggleIcon, ThinkingToggleIcon, useToggleAnimation } from './ToggleIcons.js'
+import { SearchToggleIcon, useToggleAnimation } from './ToggleIcons.js'
+import { ThinkingSwitch } from './ThinkingSwitch.js'
 import styles from './ChatInput.module.css'
 
 /** 输入框：自适应高度的文本框 + 文件 + 深度思考与智能搜索开关 + 语音输入 + 发送 / 停止 */
@@ -49,7 +50,6 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const streaming = useChatStore(
     (state) => sessionId !== null && Object.hasOwn(state.streaming, sessionId)
   )
-  const thinking = useSettings((state) => state.thinking)
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
   const search = useSettings((state) => state.search)
@@ -57,7 +57,6 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const sendKey = useSettings((state) => state.sendKey)
   const apiKey = useSettings((state) => state.apiKey)
   // 动画由真实开关状态驱动：开启正向、关闭反向，避免点击与状态不同步。
-  const thinkingRun = useToggleAnimation(thinking)
   const searchRun = useToggleAnimation(search)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<ComposerHandle>(null)
@@ -226,18 +225,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
         {/* 模型选择 + 深度思考 / 智能搜索开关，tooltip 在按钮上方 */}
         <div ref={togglesRef} className={styles.toggles}>
           <ModelSelect />
-          <Tooltip content={t('deactivatedThinkTooltip')}>
-            <button
-              type="button"
-              className={clsx(styles.toggle, thinking && styles.selected)}
-              aria-label={t('thinkingSwitch')}
-              aria-pressed={thinking}
-              onClick={() => setThinking(!thinking)}
-            >
-              <ThinkingToggleIcon run={thinkingRun} />
-              <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
-            </button>
-          </Tooltip>
+          <ThinkingSwitch />
           <Tooltip content={t('deactivatedSearchTooltip')}>
             <button
               type="button"

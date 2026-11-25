@@ -644,6 +644,21 @@
   transition: transform var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
+/* 深度思考胶囊里的当前等级，比主标签轻一档 */
+.thinkingLevel {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--dsw-alias-label-caption);
+}
+
+/* 等级菜单里的小图标，和选项标题对齐；用主题色，避免关闭档的灰暗轮廓看不清 */
+.thinkingOptionIcon {
+  display: flex;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--dsw-alias-brand-text);
+}
+
 .modelToggle[aria-expanded='true'] .modelArrow {
   transform: rotate(180deg);
 }

@@ -1,11 +1,7 @@
 import { useTranslate } from '../../i18n/index.js'
 import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
-import {
-  closeFileDownload,
-  downloadRequestedFile,
-  useFileDownload,
-} from './fileDownloadState.js'
+import { closeFileDownload, downloadRequestedFile, useFileDownload } from './fileDownloadState.js'
 import styles from './FileDownloadDialog.module.css'
 
 /**

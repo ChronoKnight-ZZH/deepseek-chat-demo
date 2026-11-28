@@ -32,6 +32,14 @@ export const createConfig = ({ env, basePath, devServer }: ConfigOptions = {}): 
   const cfg: EnvConfig = { ...envConfig, ...env }
   cfg.basePath = basePath ?? cfg.basePath
   const dev = cfg.appEnv !== 'production'
+  // 开启 HTTPS 后站点地址同步改成 https，分享链接、OAuth 回调才与实际地址一致
+  if (cfg.devHttps) {
+    cfg.webOrigin = cfg.webOrigin.replace(/^http:\/\//, 'https://')
+  }
+
+  // 打印本次构建生效的地址（含 CLI --env 覆盖），避免部署到错误环境却看不出来
+  // eslint-disable-next-line no-console
+  console.info(`[env] ${describeEnvConfig(cfg)}`)
 
   return {
     mode: dev ? 'development' : 'production',
@@ -109,18 +117,13 @@ export const createConfig = ({ env, basePath, devServer }: ConfigOptions = {}): 
     // 会话地址是真实路径（/chat/<id>），刷新和直链都要回退到 index.html
     devServer: {
       port: cfg.devPort,
+      // 自签证书由 @rspack/dev-server 借助 selfsigned 自动生成，首次访问需在浏览器信任
       server: cfg.devHttps ? 'https' : undefined,
       historyApiFallback: true,
       // 开发环境把同源接口前缀代理到本地后端；生产环境由 Nginx 反代 api 子域名
       proxy: dev
-        ? [
-            {
-              context: proxyContexts(cfg),
-              target: cfg.devProxyTarget,
-              changeOrigin: true,
-            },
-          ]
-        : undefined,
+  ? [{ context: proxyContexts(cfg), target: cfg.devProxyTarget, changeOrigin: true, secure: false }]
+  : undefined,
       ...devServer,
     },
   }
@@ -136,9 +139,11 @@ const proxyContexts = (cfg: EnvConfig): string[] => {
   return [...new Set([...contexts, '/api'])]
 }
 
-// eslint-disable-next-line import/no-default-export
-export default defineConfig(createConfig())
+/** CLI 的 `--env DEV_HTTPS=true`（npm run dev）请求强制开启开发 HTTPS */
+const wantsDevHttps = (cliEnv?: Record<string, unknown>): boolean =>
+  cliEnv?.DEV_HTTPS === true || cliEnv?.DEV_HTTPS === 'true'
 
-// 打印本次构建使用的地址，避免部署到错误环境却看不出来
-// eslint-disable-next-line no-console
-console.info(`[env] ${describeEnvConfig(envConfig)}`)
+// eslint-disable-next-line import/no-default-export
+export default defineConfig((cliEnv) =>
+  createConfig(wantsDevHttps(cliEnv) ? { env: { devHttps: true } } : undefined)
+)

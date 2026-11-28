@@ -6,7 +6,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "rspack serve -c rspack.config.ts",
+    "dev": "rspack serve -c rspack.config.ts --env DEV_HTTPS=true",
     "build": "rspack build -c rspack.config.ts",
     "build:dev": "rspack build -c rspack.config.ts --node-env development",
     "build:prod": "rspack build -c rspack.config.ts --node-env production",

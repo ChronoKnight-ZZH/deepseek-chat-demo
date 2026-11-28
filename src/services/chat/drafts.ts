@@ -19,6 +19,9 @@ export type DraftAttachment = {
   previewUrl: string | null
 }
 
+/** 已上传完成、可以随消息提交的附件 */
+export type PreparedFile = FileAttachment & { serverId: string; blob: Blob }
+
 type Draft = { text: string; attachments: DraftAttachment[] }
 
 export const EMPTY_DRAFT: Draft = { text: '', attachments: [] }
@@ -95,7 +98,7 @@ export const prepareDraftMessage = (draft: Draft, tasks: Record<string, UploadTa
   if (!text && draft.attachments.length === 0) {
     return null
   }
-  const files: (FileAttachment & { serverId: string; blob: Blob })[] = []
+  const files: PreparedFile[] = []
   for (const attachment of draft.attachments) {
     const task = tasks[attachment.id]
     if (task?.status !== 'done' || !task.serverId) {

@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { IconPaperclipOutline16, IconSendOutline16, IconStopFill16 } from '../base/icons.js'
-import { setSearch, setThinking, useSettings } from '../../services/settings.js'
+import { setSearch, useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
 import {
@@ -19,14 +19,19 @@ import { IconButton } from '../base/IconButton.js'
 import { Tooltip } from '../base/Tooltip.js'
 import { DragMask, useFileDrop } from './DragMask.js'
 import { showToast } from '../base/toastState.js'
-import { ACCEPT, useUploads } from '../../services/attachments.js'
+import { ACCEPT, MAX_COUNT, MAX_SIZE_MB, useUploads } from '../../services/attachments.js'
 import { DraftAttachments } from './DraftAttachments.js'
+import { FormatToolbar } from './FormatToolbar.js'
+import { MarkdownComposer, type ComposerHandle } from './MarkdownComposer.js'
+import type { FormatResult } from './markdownFormat.js'
+import { useFormatToolbar } from './useFormatToolbar.js'
 import { useVoiceInput } from './useVoiceInput.js'
 import { VoiceButton } from './VoiceButton.js'
 import { Spectrum } from './Spectrum.js'
 import { useTranslate } from '../../i18n/index.js'
 import { ModelSelect } from './ModelSelect.js'
-import { SearchToggleIcon, ThinkingToggleIcon, useToggleAnimation } from './ToggleIcons.js'
+import { SearchToggleIcon, useToggleAnimation } from './ToggleIcons.js'
+import { ThinkingSwitch } from './ThinkingSwitch.js'
 import styles from './ChatInput.module.css'
 
 /** 输入框：自适应高度的文本框 + 文件 + 深度思考与智能搜索开关 + 语音输入 + 发送 / 停止 */
@@ -44,17 +49,17 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const streaming = useChatStore(
     (state) => sessionId !== null && Object.hasOwn(state.streaming, sessionId)
   )
-  const thinking = useSettings((state) => state.thinking)
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
   const search = useSettings((state) => state.search)
   const model = useSettings((state) => state.model)
+  const sendKey = useSettings((state) => state.sendKey)
   // 动画由真实开关状态驱动：开启正向、关闭反向，避免点击与状态不同步。
-  const thinkingRun = useToggleAnimation(thinking)
   const searchRun = useToggleAnimation(search)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const composerRef = useRef<ComposerHandle>(null)
   const togglesRef = useRef<HTMLDivElement>(null)
+  const { selection, selectionRect, onSelectionChange } = useFormatToolbar(composerRef)
 
   useLayoutEffect(() => {
     const toggles = togglesRef.current
@@ -74,6 +79,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     // 模型名长度变化不改变容器宽度，需要随模型重新判断是否收起文字
   }, [t, model])
 
+  // 粘贴、导入和拖入文件后立即开始上传
   const acceptFiles = (files: File[]) => {
     if (files.length === 0 || useChatStore.getState().importingHistory) {
       return
@@ -103,15 +109,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
 
   /** 转写结果插入到光标处，并把光标移到插入内容之后 */
   const voice = useVoiceInput((transcript) => {
-    const textarea = textareaRef.current
-    const current = getDraft(sessionId).text
-    const start = textarea?.selectionStart ?? current.length
-    const end = textarea?.selectionEnd ?? current.length
-    setText(current.slice(0, start) + transcript + current.slice(end))
-    requestAnimationFrame(() => {
-      textarea?.focus({ preventScroll: true })
-      textarea?.setSelectionRange(start + transcript.length, start + transcript.length)
-    })
+    composerRef.current?.insertText(transcript)
   })
 
   // 欢迎页导入后会话 ID 不变，不能依赖卸载取消语音；订阅开始事件也覆盖快速完成的导入。
@@ -133,11 +131,14 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const canSend = !importingHistory && !streaming && voice.status === 'idle' && draftReady
 
   const send = () => {
-    if (
-      useChatStore.getState().importingHistory ||
-      voice.status !== 'idle' ||
-      !prepareDraftMessage(getDraft(sessionId), useUploads.getState().tasks)
-    ) {
+    if (useChatStore.getState().importingHistory || voice.status !== 'idle') {
+      return
+    }
+    const draft = getDraft(sessionId)
+    if (!draft.text.trim() && draft.attachments.length === 0) {
+      return
+    }
+    if (!prepareDraftMessage(draft, useUploads.getState().tasks)) {
       return
     }
     // 文本与上传完成态由提交动作读取最新快照，不使用上一次渲染的草稿。
@@ -146,75 +147,65 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     }
     stopReadAloud()
     if (isMobile) {
-      textareaRef.current?.blur()
+      composerRef.current?.blur()
     } else {
-      textareaRef.current?.focus()
+      composerRef.current?.focus()
     }
   }
+
+  const getComposerSelection = useCallback(
+    () => composerRef.current?.getSelection() ?? { start: 0, end: 0 },
+    []
+  )
+
+  const applyComposerFormat = useCallback((result: FormatResult) => {
+    composerRef.current?.applyEdit(result)
+  }, [])
 
   return (
     <div
       className={clsx(styles.wrapper, sessionId === null ? styles.home : styles.session)}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
-          textareaRef.current?.focus({ preventScroll: true })
+          composerRef.current?.focus()
         }
       }}
     >
       <DraftAttachments items={attachments} onRetry={retryFile} onRemove={removeFile} />
-      <div className={styles.textareaWrapper}>
-        <textarea
-          ref={textareaRef}
-          className={clsx(styles.textarea, recording && isMobile && styles.textareaHidden)}
+      {/* 格式工具栏：仅在选中输入框内文本时浮在选区附近 */}
+      {selection.end > selection.start && selectionRect ? (
+        <FormatToolbar
+          value={text}
+          selection={selection}
+          getSelection={getComposerSelection}
+          onApply={applyComposerFormat}
+          anchor={selectionRect}
+          disabled={importingHistory || voice.status !== 'idle'}
+        />
+      ) : null}
+      {/* 输入框 */}
+      <div className={styles.composerWrapper}>
+        <MarkdownComposer
+          ref={composerRef}
+          value={text}
+          onChange={setText}
+          onSelectionChange={onSelectionChange}
+          onSubmit={send}
+          sendKey={sendKey}
+          onPasteFiles={acceptFiles}
           placeholder={t('chatInputPlaceholderChat')}
-          rows={2}
+          disabled={importingHistory}
           // 移动端不自动聚焦，避免一打开就弹出键盘
           autoFocus={!isMobile}
-          disabled={importingHistory}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onMouseDown={(event) => {
-            // 首次点击时手动聚焦，避免 Safari 把整个页面滚到输入框位置。
-            if (isMobile && event.button === 0 && document.activeElement !== event.currentTarget) {
-              event.preventDefault()
-              event.currentTarget.focus({ preventScroll: true })
-            }
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault()
-              send()
-            }
-          }}
-          onPaste={(event) => {
-            const files = Array.from(event.clipboardData.files)
-            if (files.length > 0) {
-              event.preventDefault()
-              acceptFiles(files)
-            }
-          }}
+          className={clsx(recording && isMobile && styles.composerHidden)}
         />
         {recording && isMobile ? <Spectrum getAnalyser={voice.getAnalyser} /> : null}
-        <div className={styles.mirror} aria-hidden>
-          {`${text}\n`}
-        </div>
       </div>
       <div className={styles.functionRow}>
         {/* 模型选择 + 深度思考 / 智能搜索开关，tooltip 在按钮上方 */}
         <div ref={togglesRef} className={styles.toggles}>
           <ModelSelect />
-          <Tooltip content={t('deactivatedThinkTooltip')}>
-            <button
-              type="button"
-              className={clsx(styles.toggle, thinking && styles.selected)}
-              aria-label={t('thinkingSwitch')}
-              aria-pressed={thinking}
-              onClick={() => setThinking(!thinking)}
-            >
-              <ThinkingToggleIcon run={thinkingRun} />
-              <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
-            </button>
-          </Tooltip>
+          <ThinkingSwitch />
           <Tooltip content={t('deactivatedSearchTooltip')}>
             <button
               type="button"
@@ -243,7 +234,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             size="m"
             tone="primary"
             icon={<IconPaperclipOutline16 />}
-            tooltip={t('uploadFile')}
+            tooltip={t('uploadFileTooltip', { count: MAX_COUNT, size: MAX_SIZE_MB })}
+            aria-label={t('uploadFile')}
             disabled={importingHistory}
             onClick={() => fileInputRef.current?.click()}
           />

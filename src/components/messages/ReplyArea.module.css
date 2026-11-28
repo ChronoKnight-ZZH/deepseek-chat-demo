@@ -1,12 +1,40 @@
 .area {
+  position: relative;
   margin-bottom: 10px;
+}
+
+/* 观察锚点：贴在已思考容器上下边缘的 1px 区域，不参与布局 */
+.anchorTop,
+.anchorBottom {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.anchorTop {
+  top: 0;
+}
+
+.anchorBottom {
+  bottom: 0;
+}
+
+.banner {
+  margin-bottom: 2px;
+}
+
+/* 标题置顶后用它撑住标题高度，避免页面跳动 */
+.placeholder {
+  width: 100%;
 }
 
 .title {
   display: flex;
   align-items: center;
   height: 34px;
-  margin-bottom: 2px;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
   user-select: none;
@@ -15,6 +43,23 @@
   &:hover {
     color: var(--dsw-alias-label-primary);
   }
+}
+
+/* 顶部锚点滚出视口后，标题钉在滚动视口顶部；比代码框层级更高 */
+.titleFloating {
+  position: fixed;
+  z-index: 21;
+  box-sizing: border-box;
+  background: var(--dsw-alias-bg-base);
+  transition:
+    color 0.2s,
+    opacity 0.25s ease;
+}
+
+/* 已思考容器整体滚出视口后标题淡出 */
+.titleFloatingHidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .titleIcon {

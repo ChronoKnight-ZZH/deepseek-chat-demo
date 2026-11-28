@@ -28,6 +28,7 @@
 }
 
 .bubble {
+  position: relative;
   max-width: calc(100% - 88px);
   box-sizing: border-box;
   padding: 10px 16px;
@@ -36,7 +37,6 @@
   line-height: 24px;
   color: var(--dsw-alias-label-primary);
   background-color: var(--dsw-specific-bubble);
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
@@ -44,6 +44,86 @@
   .bubble {
     max-width: calc(100% - 68px);
   }
+}
+
+.bubbleContent {
+  min-width: 0;
+}
+
+/* 超过 8 行时折叠；高度与 .bubbleMarkdown 的 24px 行高对应 */
+.bubbleContentCollapsed {
+  max-height: 192px;
+  overflow: hidden;
+}
+
+.bubbleInner {
+  min-width: 0;
+}
+
+/* 气泡内的 Markdown 排版：行高与原来的纯文本气泡一致，间距更紧凑 */
+.bubble .bubbleMarkdown {
+  font: 16px/24px var(--dsw-font-family);
+}
+
+.bubble .bubbleMarkdown .paragraph,
+.bubble .bubbleMarkdown .heading,
+.bubble .bubbleMarkdown .plainTextBlock {
+  margin: 8px 0;
+}
+
+.bubble .bubbleMarkdown ul,
+.bubble .bubbleMarkdown ol {
+  margin: 8px 0;
+}
+
+/* 代码块、表格等不渲染成代码框，按普通文本换行展示 */
+.plainTextBlock {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 展开 / 收起按钮：浮在气泡右下角 */
+.expandButton {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  color: var(--dsw-alias-label-secondary);
+  background-color: var(--dsw-alias-bg-base);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  transition:
+    background-color var(--ds-transition-duration) var(--ds-ease-in-out),
+    transform 80ms var(--ds-ease-in-out);
+
+  &:hover {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--dsw-alias-brand-text);
+    outline-offset: 1px;
+  }
+
+  &:active {
+    transform: scale(0.92);
+  }
+}
+
+.expandIcon {
+  display: flex;
+  transition: transform var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+.expandIconExpanded {
+  transform: rotate(180deg);
 }
 
 .bottom {
@@ -71,34 +151,37 @@
 }
 
 .editor {
+  --line-height: 24px;
+  --input-padding-top: 10px;
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--dsw-alias-brand-primary);
   border-radius: 22px;
   background-color: var(--dsw-alias-bg-base);
+  font-size: 16px;
+  line-height: 24px;
   overflow: hidden;
 }
 
-.textarea {
-  display: block;
+/* 与原来的单行 textarea 对齐：一行起高，最多 202px 后内部滚动 */
+.editor .editorComposer {
+  --composer-min-height: 44px;
+  --composer-max-height: 202px;
+}
+
+.editorComposer {
   width: 100%;
-  box-sizing: border-box;
-  min-height: 44px;
-  max-height: 202px;
-  padding: 10px 16px;
-  border: none;
-  outline: none;
-  resize: none;
-  font: inherit;
-  font-size: 16px;
-  line-height: 24px;
-  color: var(--dsw-alias-label-primary);
-  background: transparent;
 }
 
 .editorActions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
   margin: 6px 10px 10px;
+}
+
+.editorButtons {
+  display: flex;
+  gap: 8px;
 }

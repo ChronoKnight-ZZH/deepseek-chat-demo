@@ -8,10 +8,19 @@ export type Locale = 'zh-CN' | 'en-US'
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
+/** 发送消息的快捷键：回车发送、Shift+回车发送，或关闭快捷键发送 */
+export type SendKey = 'enter' | 'shift-enter' | 'off'
+
+/**
+ * 深度思考等级：off 为关闭，其余三档都按“已开启深度思考”发给模型。
+ * 接口只有 enabled / disabled 两种取值，等级目前只驱动开关图标的形态与动画。
+ */
+export type ThinkingLevel = 'off' | 'low' | 'high' | 'max'
+
 /** 系统提示词的默认内容；用户可在设置中修改或关闭 */
 export const DEFAULT_SYSTEM_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'
 
-/** 本机设置，存 localStorage：语言、主题、位置、朗读音色、模型、深度思考与智能搜索开关、侧边栏收起状态、系统提示词及开关 */
+/** 本机设置，存 localStorage：语言、主题、位置、朗读音色、模型、深度思考等级、智能搜索开关、侧边栏收起状态、系统提示词及开关、发送快捷键 */
 type Settings = {
   locale: Locale
   themePreference: ThemePreference
@@ -19,12 +28,15 @@ type Settings = {
   ttsVoice: TtsVoice
   /** 新回复使用的模型，已有回复保留各自的模型记录 */
   model: ChatModel
+  /** 是否启用深度思考，用于随请求发送；与 thinkingLevel 的 off 取反保持同步 */
   thinking: boolean
+  thinkingLevel: ThinkingLevel
   search: boolean
   siderCollapsed: boolean
   /** 自定义系统提示词：开启后随每次对话发送 */
   systemPrompt: string
   systemPromptEnabled: boolean
+  sendKey: SendKey
 }
 
 const KEYS = {
@@ -34,10 +46,12 @@ const KEYS = {
   ttsVoice: 'chat-demo:tts-voice',
   model: 'chat-demo:model',
   thinking: 'chat-demo:thinking',
+  thinkingLevel: 'chat-demo:thinking-level',
   search: 'chat-demo:search',
   siderCollapsed: 'chat-demo:sider-collapsed',
   systemPrompt: 'chat-demo:system-prompt',
   systemPromptEnabled: 'chat-demo:system-prompt-enabled',
+  sendKey: 'chat-demo:send-key',
 } as const
 
 const read = (key: string) => {
@@ -104,19 +118,42 @@ const initialModel = (): ChatModel =>
 /** 未保存过时使用内置的助手身份说明 */
 const initialSystemPrompt = (): string => read(KEYS.systemPrompt) ?? DEFAULT_SYSTEM_PROMPT
 
-export const useSettings = create<Settings>(() => ({
-  locale: initialLocale(),
-  location: initialLocation(),
-  themePreference: initialThemePreference(),
-  ttsVoice: initialTtsVoice(),
-  model: initialModel(),
-  thinking: read(KEYS.thinking) === 'true',
-  search: read(KEYS.search) === 'true',
-  siderCollapsed: read(KEYS.siderCollapsed) === 'true',
-  systemPrompt: initialSystemPrompt(),
-  // 未保存过时保持原有行为：始终携带系统提示词
-  systemPromptEnabled: read(KEYS.systemPromptEnabled) !== 'false',
-}))
+/** 未保存过时保持原有行为：回车发送 */
+const initialSendKey = (): SendKey => {
+  const saved = read(KEYS.sendKey)
+  return saved === 'enter' || saved === 'shift-enter' || saved === 'off' ? saved : 'enter'
+}
+
+const isThinkingLevel = (value: string | null): value is ThinkingLevel =>
+  value === 'off' || value === 'low' || value === 'high' || value === 'max'
+
+/** 升级前的开关只有开 / 关两态，开启时落到最高档，关闭时落到 off */
+const initialThinkingLevel = (thinking: boolean): ThinkingLevel => {
+  const saved = read(KEYS.thinkingLevel)
+  if (!thinking) {
+    return 'off'
+  }
+  return isThinkingLevel(saved) && saved !== 'off' ? saved : 'max'
+}
+
+export const useSettings = create<Settings>(() => {
+  const thinking = read(KEYS.thinking) === 'true'
+  return {
+    locale: initialLocale(),
+    location: initialLocation(),
+    themePreference: initialThemePreference(),
+    ttsVoice: initialTtsVoice(),
+    model: initialModel(),
+    thinking,
+    thinkingLevel: initialThinkingLevel(thinking),
+    search: read(KEYS.search) === 'true',
+    siderCollapsed: read(KEYS.siderCollapsed) === 'true',
+    systemPrompt: initialSystemPrompt(),
+    // 未保存过时保持原有行为：始终携带系统提示词
+    systemPromptEnabled: read(KEYS.systemPromptEnabled) !== 'false',
+    sendKey: initialSendKey(),
+  }
+})
 
 export const setLocale = (locale: Locale) => {
   write(KEYS.locale, locale)
@@ -144,9 +181,14 @@ export const setModel = (model: ChatModel) => {
   useSettings.setState({ model })
 }
 
-export const setThinking = (thinking: boolean) => {
-  write(KEYS.thinking, String(thinking))
-  useSettings.setState({ thinking })
+/**
+ * 切换深度思考等级：等级与“是否发送 thinking.enabled”始终同步，
+ * 避免出现界面显示关闭、请求却仍启用推理的状态。
+ */
+export const setThinkingLevel = (thinkingLevel: ThinkingLevel) => {
+  write(KEYS.thinkingLevel, thinkingLevel)
+  write(KEYS.thinking, String(thinkingLevel !== 'off'))
+  useSettings.setState({ thinkingLevel, thinking: thinkingLevel !== 'off' })
 }
 
 export const setSearch = (search: boolean) => {
@@ -167,4 +209,9 @@ export const setSystemPrompt = (systemPrompt: string) => {
 export const setSystemPromptEnabled = (systemPromptEnabled: boolean) => {
   write(KEYS.systemPromptEnabled, String(systemPromptEnabled))
   useSettings.setState({ systemPromptEnabled })
+}
+
+export const setSendKey = (sendKey: SendKey) => {
+  write(KEYS.sendKey, sendKey)
+  useSettings.setState({ sendKey })
 }

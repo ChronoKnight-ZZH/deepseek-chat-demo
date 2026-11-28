@@ -16,6 +16,7 @@ import {
   isChineseBrowser,
   setLocale,
   setLocation,
+  setSendKey,
   setSystemPrompt,
   setSystemPromptEnabled,
   setThemePreference,
@@ -94,6 +95,7 @@ const SettingsContent = () => {
               <ThemeSetting />
               <LocaleSetting />
               <TtsVoiceSetting />
+              <SendKeySetting />
               <SystemPromptSetting />
               <LocationSetting />
             </>
@@ -346,6 +348,30 @@ const TtsVoiceSetting = () => {
             { value: 'tide', label: t('settingsTtsVoiceTide') },
           ]}
           onChange={setTtsVoice}
+        />
+      }
+    />
+  )
+}
+
+/** 发送快捷键：回车发送 / Shift+回车发送 / 关闭，关闭后只能用发送按钮 */
+const SendKeySetting = () => {
+  const t = useTranslate()
+  const sendKey = useSettings((state) => state.sendKey)
+  return (
+    <SettingCell
+      label={t('settingsSendKey')}
+      status={null}
+      action={
+        <Select
+          ariaLabel={t('settingsSendKey')}
+          value={sendKey}
+          options={[
+            { value: 'enter', label: t('settingsSendKeyEnter') },
+            { value: 'shift-enter', label: t('settingsSendKeyShiftEnter') },
+            { value: 'off', label: t('settingsSendKeyOff') },
+          ]}
+          onChange={setSendKey}
         />
       }
     />

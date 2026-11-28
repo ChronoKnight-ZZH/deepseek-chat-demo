@@ -1,11 +1,17 @@
 import type { Image, Link as LinkNode } from 'mdast'
 import { memo, type ReactNode } from 'react'
 
-const sanitizeUrl = (url: string) => {
-  // 如果URL没有协议，添加默认的https协议
+/** 如果URL没有协议，添加默认的https协议 */
+export const withDefaultProtocol = (url: string) => {
   if (url && !url.match(/^[a-zA-Z]+:\/\//) && !url.startsWith('mailto:')) {
-    url = `https://${url}`
+    return `https://${url}`
   }
+  return url
+}
+
+/** 校验并补全链接协议，无法识别为 http/https/mailto 时返回 undefined */
+export const sanitizeUrl = (url: string) => {
+  url = withDefaultProtocol(url)
 
   try {
     const parsedUrl = new URL(url)

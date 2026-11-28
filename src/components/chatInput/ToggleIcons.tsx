@@ -1,9 +1,10 @@
 /**
  * 输入框开关图标的动画：
- * - 深度思考 / 智能搜索来自 deepseek.com 首页的 Lottie 关键帧，转换为 SVG SMIL，
+ * - 智能搜索来自 deepseek.com 首页的 Lottie 关键帧，转换为 SVG SMIL，
  *   开启时正向播放、关闭时反向播放，时长控制在 300ms 内；
  * - 模型切换使用专属的微交互动画，风格与前者一致；
  * - 动画结束后卸载 SMIL 节点，只保留静态图标，避免动画实例常驻。
+ * 深度思考的轨道动画是独立的实现，见 ThinkingIcon.tsx。
  */
 
 import { useLayoutEffect, useRef, useState } from 'react'
@@ -58,36 +59,6 @@ export const useToggleAnimation = (enabled: boolean) =>
 
 export const useModelAnimation = (model: string) =>
   useChangeAnimation(model, MODEL_DURATION, 'forward')
-
-const THINK_FRAMES = 26
-
-/** 深度思考：两条交叉的环形，宽度依次收缩再展开 */
-const THINK_RINGS: Spec[] = [
-  {
-    times: [0, 10 / THINK_FRAMES, 20 / THINK_FRAMES, 1],
-    values: [
-      'M10.731 5.269C13.936 8.474 15.31 12.294 13.802 13.802C12.294 15.31 8.475 13.936 5.27 10.731C2.065 7.526 0.69 3.706 2.198 2.198C3.706 0.69 7.526 2.064 10.731 5.269Z',
-      'M9.3655 6.6345C12.5705 9.8395 14.556 13.048 13.802 13.802C13.048 14.556 9.8402 12.5708 6.6352 9.3658C3.4302 6.1608 1.444 2.952 2.198 2.198C2.952 1.444 6.1605 3.4295 9.3655 6.6345Z',
-      'M10.731 5.269C13.936 8.474 15.31 12.294 13.802 13.802C12.294 15.31 8.475 13.936 5.27 10.731C2.065 7.526 0.69 3.706 2.198 2.198C3.706 0.69 7.526 2.064 10.731 5.269Z',
-      'M10.731 5.269C13.936 8.474 15.31 12.294 13.802 13.802C12.294 15.31 8.475 13.936 5.27 10.731C2.065 7.526 0.69 3.706 2.198 2.198C3.706 0.69 7.526 2.064 10.731 5.269Z',
-    ],
-  },
-  {
-    times: [0, 6 / THINK_FRAMES, 16 / THINK_FRAMES, 1],
-    values: [
-      'M10.731 10.731C7.526 13.936 3.706 15.31 2.198 13.802C0.69 12.294 2.065 8.474 5.27 5.269C8.475 2.064 12.294 0.69 13.802 2.198C15.31 3.706 13.936 7.526 10.731 10.731Z',
-      'M10.731 10.731C7.526 13.936 3.706 15.31 2.198 13.802C0.69 12.294 2.065 8.474 5.27 5.269C8.475 2.064 12.294 0.69 13.802 2.198C15.31 3.706 13.936 7.526 10.731 10.731Z',
-      'M9.3655 9.3655C6.1605 12.5705 2.952 14.556 2.198 13.802C1.444 13.048 3.4302 9.8393 6.6352 6.6343C9.8402 3.4293 13.048 1.444 13.802 2.198C14.556 2.952 12.5705 6.1605 9.3655 9.3655Z',
-      'M10.731 10.731C7.526 13.936 3.706 15.31 2.198 13.802C0.69 12.294 2.065 8.474 5.27 5.269C8.475 2.064 12.294 0.69 13.802 2.198C15.31 3.706 13.936 7.526 10.731 10.731Z',
-    ],
-  },
-]
-
-/** 中心圆点在动画中短暂收缩 */
-const THINK_DOT: Spec = {
-  values: ['1.23', '0.615', '0.615', '1.23'],
-  times: [0, 12 / THINK_FRAMES, 14 / THINK_FRAMES, 1],
-}
 
 /** 经线弧的控制点比例，与圆周四分之一弧一致 */
 const MERIDIAN_CONTROL = 0.5523
@@ -152,21 +123,6 @@ const numberAnimation = (
     fill: 'freeze',
   }
 }
-
-export const ThinkingToggleIcon = ({ run }: { run: AnimationRun | null }) => (
-  <svg key={run?.id ?? 'idle'} width={14} height={14} viewBox="0 0 16 16" fill="none" aria-hidden>
-    {THINK_RINGS.map((ring) => (
-      <path key={ring.values[0]} d={ring.values[0]} {...stroke}>
-        {run ? <animate {...pathAnimation(ring, run.direction)} /> : null}
-      </path>
-    ))}
-    <circle cx={8} cy={8} r={1.23} fill="currentColor">
-      {run ? (
-        <animate {...numberAnimation('r', THINK_DOT, run.direction, TOGGLE_DURATION)} />
-      ) : null}
-    </circle>
-  </svg>
-)
 
 export const SearchToggleIcon = ({ run }: { run: AnimationRun | null }) => (
   <svg key={run?.id ?? 'idle'} width={14} height={14} viewBox="0 0 16 16" fill="none" aria-hidden>

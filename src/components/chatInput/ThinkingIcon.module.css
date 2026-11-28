@@ -1,0 +1,50 @@
+/**
+ * 深度思考开关图标的 SVG 基础样式。
+ *
+ * 颜色全部走 currentColor（跟随开关的文字色：关闭为正文色、选中有主题色），
+ * 虚实、透明度、位移等逐帧变化的属性由 ThinkingIcon 直接写在元素上。
+ */
+
+.icon {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+  color: inherit;
+}
+
+/* 两条椭圆轨道与其幽灵轮廓 */
+.ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.ghost {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
+
+/* 外层流星环：长线做轨迹、短线段做流星 */
+.meteorTrail {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+
+.meteorDots {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
+
+/* 中心点、电子与交叉点粒子 */
+.core,
+.electron,
+.particle {
+  fill: currentColor;
+}

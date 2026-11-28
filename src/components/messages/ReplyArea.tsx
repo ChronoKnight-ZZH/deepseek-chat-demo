@@ -30,6 +30,7 @@ import {
 } from '../../services/chat/view.js'
 import { Tooltip } from '../base/Tooltip.js'
 import { Markdown } from '../markdown/Markdown.js'
+import { ThinkingFloatingProvider, useFloatingCodeBanner } from '../markdown/useFloatingCodeBanner.js'
 import { SiteThumbnails } from '../search/SiteLogo.js'
 import { toggleSearchPanel, useSearchPanel } from '../search/searchPanelState.js'
 import styles from './ReplyArea.module.css'
@@ -68,38 +69,70 @@ export const ReplyArea = memo(function ReplyArea({
   const [open, setOpen] = useState(true)
   const titleActive = streaming && !hasResponse
   useTicker(titleActive, 1000)
-  if (view.steps.length === 0 && !(message.thinking && streaming)) {
-    return null
-  }
   // 未记录请求开关时，按是否有思考内容显示标题。
   const thinking = message.thinking ?? view.steps.some((step) => step.type === 'thinking')
   const title = thinking ? getAreaTitle(view, streaming, Date.now(), hasResponse) : null
   const stopped = !streaming && !hasResponse
+  // 已思考标题与代码框使用同一套置顶逻辑，但优先级更高。
+  const {
+    blockRef,
+    bannerRef,
+    topAnchorRef,
+    bottomAnchorRef,
+    floating,
+    hidden,
+    placeholderHeight,
+    floatingStyle,
+  } = useFloatingCodeBanner(title !== null)
+  if (view.steps.length === 0 && !(message.thinking && streaming)) {
+    return null
+  }
   return (
-    <div className={styles.area}>
-      {title ? (
-        <div className={styles.title} onClick={() => setOpen((value) => !value)}>
-          <span className={clsx(styles.titleIcon, stopped && styles.stoppedIcon)}>
-            <IconThinkOutline16 />
-          </span>
-          <span className={clsx(styles.titleText, titleActive && styles.shimmer)}>{title}</span>
-          {open ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />}
-        </div>
-      ) : null}
-      {open || !title ? (
-        <div className={styles.steps}>
-          {view.steps.map((step, index) => (
-            <StepItem
-              key={stepKey(step, index)}
-              step={step}
-              message={message}
-              sources={view.sources}
-              streaming={streaming}
-              isLast={index === view.steps.length - 1}
-            />
-          ))}
-        </div>
-      ) : null}
+    <div className={styles.area} ref={blockRef}>
+      <span ref={topAnchorRef} className={styles.anchorTop} aria-hidden="true" />
+      <div className={styles.banner} ref={bannerRef}>
+        {floating ? (
+          <div
+            className={styles.placeholder}
+            style={{ height: placeholderHeight }}
+            aria-hidden="true"
+          />
+        ) : null}
+        {title ? (
+          <div
+            className={clsx(
+              styles.title,
+              floating && styles.titleFloating,
+              hidden && styles.titleFloatingHidden
+            )}
+            style={floatingStyle}
+            onClick={() => setOpen((value) => !value)}
+          >
+            <span className={clsx(styles.titleIcon, stopped && styles.stoppedIcon)}>
+              <IconThinkOutline16 />
+            </span>
+            <span className={clsx(styles.titleText, titleActive && styles.shimmer)}>{title}</span>
+            {open ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />}
+          </div>
+        ) : null}
+      </div>
+      <ThinkingFloatingProvider value={floating}>
+        {open || !title ? (
+          <div className={styles.steps}>
+            {view.steps.map((step, index) => (
+              <StepItem
+                key={stepKey(step, index)}
+                step={step}
+                message={message}
+                sources={view.sources}
+                streaming={streaming}
+                isLast={index === view.steps.length - 1}
+              />
+            ))}
+          </div>
+        ) : null}
+      </ThinkingFloatingProvider>
+      <span ref={bottomAnchorRef} className={styles.anchorBottom} aria-hidden="true" />
     </div>
   )
 })

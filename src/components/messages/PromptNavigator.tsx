@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { useIsMobile } from '../../app/viewport.js'
+import { useIsMobile, useIsWide } from '../../app/viewport.js'
 import { useTranslate } from '../../i18n/index.js'
 import type { MessageVersions } from '../../services/chat/branches.js'
 import type { UserMessage } from '../../services/chat/types.js'
@@ -9,12 +9,11 @@ import styles from './PromptNavigator.module.css'
 
 /** 单行最多显示的字数，超出用省略号 */
 const MAX_LABEL_LENGTH = 13
-/** 悬停提示的固定宽度、和面板/视口的间距 */
-const TIP_WIDTH = 420
+/** 悬停提示与面板/视口的间距 */
 const TIP_GAP = 12
 const TIP_MARGIN = 12
 /** 鼠标停在标签上多久后显示完整提示词 */
-const TIP_DELAY = 2000
+const TIP_DELAY = 1000
 const ENTER_DELAY = 60
 const LEAVE_DELAY = 180
 /** 以视口上方这一比例处作为“当前阅读位置”，用于判断当前提示词 */
@@ -22,8 +21,8 @@ const READING_LINE = 0.12
 
 type TooltipState = {
   text: string
-  width: number
-  left: number
+  /** 提示框右边缘的锚点，宽度自适应后向左展开 */
+  anchorLeft: number
   /** 悬停行的顶部，实际高度量出后再校正到视口内 */
   anchorTop: number
 }
@@ -37,6 +36,17 @@ const getPromptText = (message: UserMessage) => {
   return message.files.map((file) => file.name).join('、')
 }
 
+/** 展示的短标题：优先自定义 navLabel，否则退回到内容截断 */
+const getDisplayLabel = (message: UserMessage) => {
+  if (message.navLabel?.trim()) {
+    return truncate(message.navLabel.trim())
+  }
+  return truncate(getPromptText(message))
+}
+
+/** 悬停时显示的完整文字：navLabel（有就显示）或完整提示词 */
+const getFullText = (message: UserMessage) => message.navLabel?.trim() || getPromptText(message)
+
 const truncate = (text: string) => {
   const chars = Array.from(text)
   return chars.length > MAX_LABEL_LENGTH ? `${chars.slice(0, MAX_LABEL_LENGTH).join('')}…` : text
@@ -46,8 +56,9 @@ const isOverflowing = (text: string) => Array.from(text).length > MAX_LABEL_LENG
 
 /**
  * 会话内右侧居中的提示词快速跳转：收起时只保留每行末尾的短横线，
- * 悬停展开为 300×380 的列表；当前提示词为蓝色，悬停项加粗，
- * 有分支的提示词在前方占用三个字显示「2/3」，过长内容悬停显示完整提示词。
+ * 悬停展开为宽度自适应的列表（最宽 300），高度随提示词数量自适应、最多显示 6 行；
+ * 当前提示词为蓝色，悬停项加粗，有分支的提示词在前方显示「2/3」标签，
+ * 过长内容悬停显示完整提示词。
  */
 export const PromptNavigator = ({
   prompts,
@@ -63,6 +74,7 @@ export const PromptNavigator = ({
 }) => {
   const t = useTranslate()
   const isMobile = useIsMobile()
+  const isWide = useIsWide()
   const panelRef = useRef<HTMLElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const activeRowRef = useRef<HTMLButtonElement>(null)
@@ -156,15 +168,21 @@ export const PromptNavigator = ({
     }
   }, [ids, scrollRef])
 
-  // 展开时让当前提示词停在列表中间；收起时只在超出可视区域时滚到对应短横线。
+  // 展开时只把当前提示词滚到列表中间一次，之后点击其它项不再调整滚动位置。
   useEffect(() => {
     const list = listRef.current
     const row = activeRowRef.current
-    if (!list || !row) {
+    if (!open || !list || !row) {
       return
     }
-    if (open) {
-      list.scrollTop = Math.max(0, row.offsetTop - list.clientHeight / 2 + row.offsetHeight / 2)
+    list.scrollTop = Math.max(0, row.offsetTop - list.clientHeight / 2 + row.offsetHeight / 2)
+  }, [open])
+
+  // 收起时只在超出可视区域时滚到对应短横线。
+  useEffect(() => {
+    const list = listRef.current
+    const row = activeRowRef.current
+    if (open || !list || !row) {
       return
     }
     const top = row.offsetTop
@@ -203,11 +221,12 @@ export const PromptNavigator = ({
     )
   }
 
-  // 鼠标在标签上停留 2 秒后，才弹出完整提示词。
-  const scheduleTip = (text: string, row: HTMLButtonElement) => {
+  // 鼠标在标签上停留 1 秒后，才弹出完整提示词。
+  const scheduleTip = (message: UserMessage, row: HTMLButtonElement) => {
     clearTimeout(tipTimerRef.current)
     setTip(null)
-    if (!open || !isOverflowing(text)) {
+    const fullText = getFullText(message)
+    if (!open || !isOverflowing(fullText)) {
       return
     }
     tipTimerRef.current = setTimeout(() => {
@@ -215,13 +234,10 @@ export const PromptNavigator = ({
         return
       }
       const rect = row.getBoundingClientRect()
-      const width = Math.min(TIP_WIDTH, window.innerWidth - TIP_MARGIN * 2)
       const panel = panelRef.current?.getBoundingClientRect()
-      const anchorLeft = panel?.left ?? rect.left
       setTip({
-        text,
-        width,
-        left: Math.max(TIP_MARGIN, anchorLeft - width - TIP_GAP),
+        text: fullText,
+        anchorLeft: (panel?.left ?? rect.left) - TIP_GAP,
         anchorTop: rect.top - 6,
       })
       setTipTop(Math.max(TIP_MARGIN, rect.top - 6))
@@ -233,7 +249,7 @@ export const PromptNavigator = ({
     setTip(null)
   }
 
-  if (isMobile || prompts.length < 2) {
+  if (!isWide || isMobile || prompts.length < 2) {
     return null
   }
 
@@ -258,12 +274,12 @@ export const PromptNavigator = ({
       >
         <div ref={listRef} className={styles.list}>
           {prompts.map((message) => {
-            const text = getPromptText(message)
-            const label = truncate(text)
             const version = versions.get(message.id)
             const branch =
               version && version.ids.length > 1 ? `${version.index + 1}/${version.ids.length}` : ''
             const active = message.id === activeId
+            const displayLabel = getDisplayLabel(message)
+            const fullText = getFullText(message)
             return (
               <button
                 key={message.id}
@@ -271,16 +287,16 @@ export const PromptNavigator = ({
                 type="button"
                 className={clsx(styles.row, active && styles.active)}
                 aria-current={active ? 'true' : undefined}
-                aria-label={branch ? `${branch} ${text}` : text}
+                aria-label={branch ? `${branch} ${fullText}` : fullText}
                 onClick={() => {
                   setActiveId(message.id)
                   onJump(message.id)
                 }}
-                onMouseEnter={(event) => scheduleTip(text, event.currentTarget)}
+                onMouseEnter={(event) => scheduleTip(message, event.currentTarget)}
                 onMouseLeave={hideTip}
               >
                 {branch ? <span className={styles.branch}>{branch}</span> : null}
-                <span className={styles.label}>{label}</span>
+                <span className={styles.label}>{displayLabel}</span>
                 <span className={styles.dash} aria-hidden="true" />
               </button>
             )
@@ -293,7 +309,7 @@ export const PromptNavigator = ({
               ref={tipRef}
               className={styles.tooltip}
               role="tooltip"
-              style={{ width: tip.width, left: tip.left, top: tipTop }}
+              style={{ left: tip.anchorLeft, top: tipTop }}
             >
               {tip.text}
             </div>,

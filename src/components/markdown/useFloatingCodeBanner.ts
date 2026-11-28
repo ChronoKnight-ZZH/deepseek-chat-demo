@@ -1,5 +1,17 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { useIsMobile } from '../../app/viewport.js'
+
+/** 已思考标题是否正在置顶；置顶时内部代码框让位，避免替换标题。 */
+const ThinkingFloatingContext = createContext(false)
+
+export const ThinkingFloatingProvider = ThinkingFloatingContext.Provider
 
 /** 钉在滚动视口顶部时的位置与尺寸 */
 type FloatingBox = {
@@ -27,11 +39,12 @@ const sameBox = (current: FloatingBox, next: FloatingBox) =>
   current.height === next.height
 
 /**
- * 代码块标题栏的「流动」效果：
+ * 标题栏的「流动」效果：
  * 顶部锚点滚出视口后把标题栏 fixed 钉在顶部，底部锚点也滚出后淡出；
  * 回滚时按相反顺序恢复。
+ * enabled 为 false 时停用；位于已思考容器内时让位给更高优先级的已思考标题。
  */
-export const useFloatingCodeBanner = () => {
+export const useFloatingCodeBanner = (enabled = true) => {
   const blockRef = useRef<HTMLDivElement>(null)
   const bannerRef = useRef<HTMLDivElement>(null)
   const topAnchorRef = useRef<HTMLSpanElement>(null)
@@ -39,9 +52,16 @@ export const useFloatingCodeBanner = () => {
   const [box, setBox] = useState<FloatingBox | null>(null)
   const [hidden, setHidden] = useState(false)
   const isMobile = useIsMobile()
+  const parentFloating = useContext(ThinkingFloatingContext)
+  const active = enabled && !parentFloating
 
   // 移动端与桌面端的滚动容器不同，切换布局后需要重新绑定观察器
   useEffect(() => {
+    if (!active) {
+      setBox(null)
+      setHidden(false)
+      return
+    }
     const block = blockRef.current
     const banner = bannerRef.current
     const topAnchor = topAnchorRef.current
@@ -107,18 +127,18 @@ export const useFloatingCodeBanner = () => {
       resizeObserver.disconnect()
       window.removeEventListener('resize', evaluate)
     }
-  }, [isMobile])
+  }, [active, isMobile])
 
-  const floatingStyle: CSSProperties | undefined = box
-    ? { top: box.top, left: box.left, width: box.width }
-    : undefined
+  const floating = active && box !== null
+  const floatingStyle: CSSProperties | undefined =
+    floating && box ? { top: box.top, left: box.left, width: box.width } : undefined
 
   return {
     blockRef,
     bannerRef,
     topAnchorRef,
     bottomAnchorRef,
-    floating: box !== null,
+    floating,
     hidden,
     placeholderHeight: box?.height ?? 0,
     floatingStyle,

@@ -32,6 +32,7 @@ import { MarkdownComposer, type ComposerHandle } from '../chatInput/MarkdownComp
 import type { FormatResult } from '../chatInput/markdownFormat.js'
 import { useFormatToolbar } from '../chatInput/useFormatToolbar.js'
 import { UserMarkdown } from './UserMarkdown.js'
+import { AgentTaskCard } from './AgentTaskCard.js'
 import {
   BranchSwitcher,
   type MessageVersions,
@@ -75,7 +76,9 @@ const MessageEditor = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { selection, selectionRect, onSelectionChange } = useFormatToolbar(composerRef)
   const draftKey = `edit:${sessionId}:${messageId}`
-  const attachments = useDrafts((state) => state.drafts.get(draftKey)?.attachments ?? EMPTY_DRAFT.attachments)
+  const attachments = useDrafts(
+    (state) => state.drafts.get(draftKey)?.attachments ?? EMPTY_DRAFT.attachments
+  )
   const canSend = !disabled && (value.trim() !== '' || hasFiles || attachments.length > 0)
 
   const acceptFiles = (files: File[]) => {
@@ -294,10 +297,7 @@ export const UserMessage = memo(function UserMessage({
                     onClick={() => setExpanded((value) => !value)}
                   >
                     <span
-                      className={clsx(
-                        styles.expandIcon,
-                        expanded && styles.expandIconExpanded
-                      )}
+                      className={clsx(styles.expandIcon, expanded && styles.expandIconExpanded)}
                     >
                       <IconChevronDownOutline14 />
                     </span>
@@ -305,6 +305,14 @@ export const UserMessage = memo(function UserMessage({
                 </Tooltip>
               ) : null}
             </div>
+          ) : null}
+          {message.agent ? (
+            <AgentTaskCard
+              sessionId={sessionId}
+              messageId={message.id}
+              task={message.agent}
+              busy={busy}
+            />
           ) : null}
           <div className={styles.bottom}>
             <div className={clsx(styles.actions, isLast && styles.alwaysShow)}>

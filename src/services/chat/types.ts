@@ -1,5 +1,6 @@
 import type { TranslationMessage } from '../../i18n/index.js'
 import type { ApiErrorKind } from '../api/client.js'
+import type { AgentTask } from '../api/agent.js'
 import type {
   ChatModel,
   MessageUsage,
@@ -45,6 +46,11 @@ export type UserMessage = MessageBranch & {
   createdAt: number
   /** 右侧提示词导航的自定义短标题；未设置时按 content 截断展示。 */
   navLabel?: string
+  /**
+   * Agent 模式提问：提交到 Agent Harness 后的任务快照（轮询持续更新）。
+   * 普通聊天提问没有该字段；旧存档缺省即普通消息，读取端不需要迁移。
+   */
+  agent?: AgentTask
 }
 
 /** 思考块：thinking_delta 累积，签名随 signature_delta 到达；历史轮次的思考服务端会丢弃，不回传 */

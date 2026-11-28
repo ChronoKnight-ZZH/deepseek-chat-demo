@@ -10,6 +10,8 @@ import {
 } from '../api/sessions.js'
 import type { CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
+import { cancelAgentTask, createAgentTask, isTerminalStatus, type AgentTask } from '../api/agent.js'
+import { startAgentPolling, stopAgentPolling, stopAllAgentPolling } from '../agent/polling.js'
 import {
   archiveOriginal,
   cancelUpload,
@@ -355,6 +357,8 @@ export const initChat = (force = false): Promise<void> => {
     unsavedSessions.clear()
     pendingFiles.clear()
     clearAllDrafts()
+    // 切换账号：停掉所有 Agent 轮询，避免旧账号任务更新写进新账号界面
+    stopAllAgentPolling()
     set({
       ready: false,
       initError: false,
@@ -458,6 +462,8 @@ const ensureSessionLoaded = (id: string): Promise<void> => {
       if (settled !== stored || session !== settled) {
         persist(id)
       }
+      // 刷新后重新接管会话里未到终态的 Agent 任务（幂等：同 taskId 不重复起轮询）
+      resumeAgentTasks(session)
       trimSessionCache()
     } catch (error) {
       if (epoch === historyEpoch && sessionLoads.get(id) === load) {
@@ -707,6 +713,7 @@ export const stopAllReplies = () => {
     }
     controller.abort()
   }
+  stopAllAgentPolling()
 }
 
 /**
@@ -783,6 +790,163 @@ export const sendMessage = (targetSessionId: string | null) => {
   clearSentDraft(targetSessionId)
   void streamReply(sessionId, reply, { history, question })
   return true
+}
+
+// ---------------------------------------------------------------- Agent 模式
+// 与 sendMessage 平行的提交链路：产物是「用户提问 + 任务快照」，不进 SSE 流。
+// 会话创建逻辑与 sendMessage 保持一致（同一套草稿/分支/持久化原语）。
+
+/** 把轮询结果写回消息快照；只有状态变化才触发一次持久化，心跳轮询不写库 */
+const applyAgentTask = (sessionId: string, messageId: string, task: AgentTask) => {
+  const session = getSession(sessionId)
+  if (!session) {
+    return
+  }
+  const previous = session.messages.find((message) => message.id === messageId)
+  if (!previous || previous.role !== 'user' || !previous.agent) {
+    return
+  }
+  const statusChanged = previous.agent.status !== task.status
+  updateSession(sessionId, (current) => ({
+    ...current,
+    messages: current.messages.map((message) =>
+      message.id === messageId && message.role === 'user' ? { ...message, agent: task } : message
+    ),
+    updatedAt: Date.now(),
+  }))
+  if (statusChanged) {
+    persist(sessionId)
+  }
+  if (isTerminalStatus(task.status)) {
+    stopAgentPolling(task.taskId)
+  }
+}
+
+const attachAgentPolling = (sessionId: string, messageId: string, task: AgentTask) => {
+  startAgentPolling(task.taskId, {
+    onUpdate: (next) => applyAgentTask(sessionId, messageId, next),
+  })
+}
+
+/** 会话装载后的续轮询：把非终态任务重新接管（覆盖刷新/多端打开） */
+const resumeAgentTasks = (session: Session) => {
+  for (const message of session.messages) {
+    if (message.role === 'user' && message.agent && !isTerminalStatus(message.agent.status)) {
+      attachAgentPolling(session.id, message.id, message.agent)
+    }
+  }
+}
+
+/**
+ * 以 Agent 模式提交当前草稿：任务创建成功后才落消息、清草稿；
+ * 失败（含 401/503 AGENT_DISABLED）返回 false，草稿保持可见可重试。
+ */
+export const sendAgentMessage = async (targetSessionId: string | null): Promise<boolean> => {
+  if (get().importingHistory || !get().ready) {
+    return false
+  }
+  const prepared = prepareDraftMessage(getDraft(targetSessionId), useUploads.getState().tasks)
+  if (!prepared) {
+    return false
+  }
+  const { text, files } = prepared
+  // Agent 按服务端原件 id（storageId）授权读取；存在未上传完成的附件时不提交
+  if (files.some((file) => !file.storageId)) {
+    return false
+  }
+  const fileIds = [
+    ...new Set(files.map((file) => file.storageId).filter((id): id is string => Boolean(id))),
+  ]
+
+  let task: AgentTask
+  try {
+    task = await createAgentTask({
+      message: text,
+      fileIds,
+      conversationId: targetSessionId,
+      idempotencyKey: createId(),
+    })
+  } catch {
+    // 401 已在请求层统一切回登录页；其余错误原样吞掉，由调用方提示
+    return false
+  }
+
+  const now = Date.now()
+  let sessionId = targetSessionId
+  if (sessionId !== null && (deletingSessions.has(sessionId) || !getSession(sessionId))) {
+    // 任务已在服务端排队但本地会话不可用：立即取消，避免留下看不见的任务
+    void cancelAgentTask(task.taskId).catch(() => {})
+    return false
+  }
+  if (sessionId === null) {
+    const session: Session = {
+      id: createId(),
+      title: '',
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+      rootMessageId: null,
+    }
+    sessionId = session.id
+    touchSession(session.id)
+    set((state) => ({
+      sessions: [toSessionSummary(session), ...state.sessions],
+      sessionCache: { ...state.sessionCache, [session.id]: session },
+      activeId: session.id,
+    }))
+  }
+  const current = getSession(sessionId)
+  if (!current) {
+    void cancelAgentTask(task.taskId).catch(() => {})
+    return false
+  }
+  const history = getVisibleMessages(current)
+  const question: UserMessage = {
+    id: createId(),
+    role: 'user',
+    content: text,
+    files: files.map(({ id, serverId, storageId, name, size, isImage, mimeType }) => ({
+      id,
+      serverId,
+      storageId,
+      name,
+      size,
+      isImage,
+      mimeType,
+    })),
+    createdAt: now,
+    agent: task,
+  }
+  updateSession(sessionId, (session) => ({
+    ...appendBranch(session, history.at(-1)?.id ?? null, [question]),
+    updatedAt: now,
+  }))
+  persist(sessionId)
+  clearSentDraft(targetSessionId)
+  attachAgentPolling(sessionId, question.id, task)
+  return true
+}
+
+/** 取消会话消息绑定的 Agent 任务；以服务端返回的最新快照为准 */
+export const cancelAgentMessage = async (
+  sessionId: string,
+  messageId: string
+): Promise<boolean> => {
+  const session = getSession(sessionId)
+  const message = session?.messages.find((item) => item.id === messageId)
+  if (!message || message.role !== 'user' || !message.agent) {
+    return false
+  }
+  const taskId = message.agent.taskId
+  try {
+    const result = await cancelAgentTask(taskId)
+    applyAgentTask(sessionId, messageId, result.task)
+    stopAgentPolling(taskId)
+    return result.cancelled
+  } catch {
+    return false
+  }
 }
 
 /** 重新生成当前路径上的回答：在原问题下新增版本，不覆盖旧回答和后续对话。 */

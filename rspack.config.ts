@@ -147,9 +147,10 @@ const proxyContexts = (cfg: EnvConfig): string[] => {
   const contexts = [cfg.authBase, cfg.bffBase].filter((base) => base.startsWith('/'))
   if (contexts.length === 0) {
     // .env.development 把接口写成完整域名时，仍保留默认前缀方便本地直连后端调试
-    return ['/auth', '/v1', '/api']
+    return ['/auth', '/v1', '/api', '/health']
   }
-  return [...new Set([...contexts, '/api'])]
+  // /api = Agent Harness 接口，/health = Agent 灰度探测（见 services/api/agent.ts）
+  return [...new Set([...contexts, '/api', '/health'])]
 }
 
 /** CLI 的 `--env DEV_HTTPS=true`（npm run dev）请求强制开启开发 HTTPS */

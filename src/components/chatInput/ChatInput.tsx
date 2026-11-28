@@ -1,9 +1,24 @@
 import clsx from 'clsx'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
-import { IconPaperclipOutline16, IconSendOutline16, IconStopFill16 } from '../base/icons.js'
+import {
+  IconPaperclipOutline16,
+  IconDataOutline16,
+  IconSendOutline16,
+  IconStopFill16,
+} from '../base/icons.js'
 import { setSearch, useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
-import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
+import {
+  sendAgentMessage,
+  sendMessage,
+  stopReply,
+  useChatStore,
+} from '../../services/chat/store.js'
+import {
+  refreshAgentAvailability,
+  setAgentMode,
+  useAgentStore,
+} from '../../services/agent/state.js'
 import {
   addDraftFiles,
   EMPTY_DRAFT,
@@ -54,6 +69,13 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const search = useSettings((state) => state.search)
   const model = useSettings((state) => state.model)
   const sendKey = useSettings((state) => state.sendKey)
+  // Agent 模式：入口只在后端灰度开启时显示；偏好存本机 localStorage
+  const agentMode = useAgentStore((state) => state.mode)
+  const agentOn = agentMode === 'agent'
+  const agentAvailable = useAgentStore((state) => state.availability?.enabled === true)
+  useEffect(() => {
+    void refreshAgentAvailability()
+  }, [])
   // 动画由真实开关状态驱动：开启正向、关闭反向，避免点击与状态不同步。
   const searchRun = useToggleAnimation(search)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -128,7 +150,18 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const recording = voice.status === 'recording'
 
   // 排队、上传中或上传失败的附件都留在输入框，全部上传成功后才能发送
-  const canSend = !importingHistory && !streaming && voice.status === 'idle' && draftReady
+  // Agent 模式不占用 SSE 流，正在流式生成回答时也可以提交任务
+  const canSend =
+    !importingHistory && (agentOn || !streaming) && voice.status === 'idle' && draftReady
+
+  const focusAfterSend = () => {
+    stopReadAloud()
+    if (isMobile) {
+      composerRef.current?.blur()
+    } else {
+      composerRef.current?.focus()
+    }
+  }
 
   const send = () => {
     if (useChatStore.getState().importingHistory || voice.status !== 'idle') {
@@ -141,16 +174,22 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     if (!prepareDraftMessage(draft, useUploads.getState().tasks)) {
       return
     }
+    if (agentOn) {
+      // 异步创建任务：成功才清草稿；失败保留原样可直接重试
+      void sendAgentMessage(sessionId).then((ok) => {
+        if (ok) {
+          focusAfterSend()
+        } else {
+          showToast({ key: 'agentSubmitFailed' })
+        }
+      })
+      return
+    }
     // 文本与上传完成态由提交动作读取最新快照，不使用上一次渲染的草稿。
     if (!sendMessage(sessionId)) {
       return
     }
-    stopReadAloud()
-    if (isMobile) {
-      composerRef.current?.blur()
-    } else {
-      composerRef.current?.focus()
-    }
+    focusAfterSend()
   }
 
   const getComposerSelection = useCallback(
@@ -193,7 +232,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
           onSubmit={send}
           sendKey={sendKey}
           onPasteFiles={acceptFiles}
-          placeholder={t('chatInputPlaceholderChat')}
+          placeholder={t(agentOn ? 'chatInputPlaceholderAgent' : 'chatInputPlaceholderChat')}
           disabled={importingHistory}
           // 移动端不自动聚焦，避免一打开就弹出键盘
           autoFocus={!isMobile}
@@ -204,20 +243,39 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       <div className={styles.functionRow}>
         {/* 模型选择 + 深度思考 / 智能搜索开关，tooltip 在按钮上方 */}
         <div ref={togglesRef} className={styles.toggles}>
-          <ModelSelect />
-          <ThinkingSwitch />
-          <Tooltip content={t('deactivatedSearchTooltip')}>
-            <button
-              type="button"
-              className={clsx(styles.toggle, search && styles.selected)}
-              aria-label={t('search')}
-              aria-pressed={search}
-              onClick={() => setSearch(!search)}
-            >
-              <SearchToggleIcon run={searchRun} />
-              <span className={styles.toggleLabel}>{t('search')}</span>
-            </button>
-          </Tooltip>
+          {/* Agent 模式下模型/思考/搜索开关无效，只保留任务入口 */}
+          {agentOn ? null : (
+            <>
+              <ModelSelect />
+              <ThinkingSwitch />
+              <Tooltip content={t('deactivatedSearchTooltip')}>
+                <button
+                  type="button"
+                  className={clsx(styles.toggle, search && styles.selected)}
+                  aria-label={t('search')}
+                  aria-pressed={search}
+                  onClick={() => setSearch(!search)}
+                >
+                  <SearchToggleIcon run={searchRun} />
+                  <span className={styles.toggleLabel}>{t('search')}</span>
+                </button>
+              </Tooltip>
+            </>
+          )}
+          {agentAvailable ? (
+            <Tooltip content={t('agentModeTooltip')}>
+              <button
+                type="button"
+                className={clsx(styles.toggle, agentOn && styles.selected)}
+                aria-label={t('agentMode')}
+                aria-pressed={agentOn}
+                onClick={() => setAgentMode(agentOn ? 'chat' : 'agent')}
+              >
+                <IconDataOutline16 />
+                <span className={styles.toggleLabel}>{t('agentMode')}</span>
+              </button>
+            </Tooltip>
+          ) : null}
         </div>
         <div className={styles.right}>
           <VoiceButton

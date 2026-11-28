@@ -75,9 +75,16 @@ const BINARY_EXTS = new Set([
   'OTF',
 ])
 
-/** PDF 由浏览器内置阅读器渲染，不再当作文本解码 */
+/** PDF 由 pdf.js 渲染，不再当作文本解码 */
 export const isPdfPreviewable = (name: string, mimeType: string): boolean =>
   mimeType.toLowerCase() === 'application/pdf' || getExtension(name) === 'PDF'
+
+/** Markdown 文档值得按会话里的排版渲染，而不是等宽源码 */
+const MARKDOWN_EXTS = new Set(['MD', 'MARKDOWN'])
+const MARKDOWN_MIME_TYPES = new Set(['text/markdown', 'text/x-markdown'])
+
+export const isMarkdownFile = (name: string, mimeType: string): boolean =>
+  MARKDOWN_MIME_TYPES.has(mimeType.toLowerCase()) || MARKDOWN_EXTS.has(getExtension(name))
 
 /**
  * 是否值得按文本预览：MIME 可信时直接判定，缺失或为 octet-stream 时按扩展名兜底。
@@ -162,7 +169,7 @@ const fetchPreviewWithRetry = async (fileId: string, sessionId: string) => {
 
 /**
  * 读取原件内容：本地 IndexedDB 优先，本地缺失时用 p 票据向服务端取内联字节。
- * PDF 原样返回字节交给浏览器阅读器；文本按编码嗅探，二进制转为「只能下载」。
+ * PDF 原样返回字节交给 pdf.js；文本按编码嗅探，二进制转为「只能下载」。
  * 原件不存在或读取失败时抛错，由预览面板显示失败并提供下载兜底。
  */
 export const loadPreviewContent = async (target: FilePreviewTarget): Promise<PreviewContent> => {

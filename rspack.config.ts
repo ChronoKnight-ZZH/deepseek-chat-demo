@@ -84,6 +84,12 @@ export const createConfig = ({ env, basePath, devServer }: ConfigOptions = {}): 
           },
           type: 'javascript/auto',
         },
+        {
+          // pdf.js 的 worker 改用 .js 输出，避免部分服务器没给 .mjs 配置 JS MIME
+          test: /pdf\.worker\.min\.mjs$/,
+          type: 'asset/resource',
+          generator: { filename: 'static/media/[name].[contenthash:8].js' },
+        },
         { test: /\.(woff2?|ttf)$/, type: 'asset/resource' },
       ],
     },
@@ -122,8 +128,15 @@ export const createConfig = ({ env, basePath, devServer }: ConfigOptions = {}): 
       historyApiFallback: true,
       // 开发环境把同源接口前缀代理到本地后端；生产环境由 Nginx 反代 api 子域名
       proxy: dev
-  ? [{ context: proxyContexts(cfg), target: cfg.devProxyTarget, changeOrigin: true, secure: false }]
-  : undefined,
+        ? [
+            {
+              context: proxyContexts(cfg),
+              target: cfg.devProxyTarget,
+              changeOrigin: true,
+              secure: false,
+            },
+          ]
+        : undefined,
       ...devServer,
     },
   }

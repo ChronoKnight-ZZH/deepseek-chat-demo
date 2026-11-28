@@ -143,6 +143,9 @@ export const en = {
   filePreviewEmpty: 'The file is empty.',
   filePreviewTruncated:
     'Large file: only the first {count} characters are previewed. Download for the full content.',
+  pdfPage: 'Page',
+  pdfZoomIn: 'Zoom in',
+  pdfZoomOut: 'Zoom out',
   fileDownloadTitle: 'Download file',
   fileDownloadDescription:
     '“{name}” cannot be previewed. Download it to view the content on your device?',

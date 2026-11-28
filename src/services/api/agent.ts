@@ -69,6 +69,8 @@ export type AgentAvailability = {
   enabled: boolean
   queueMode: string
   executionEnabled: boolean
+  /** 谁在消费任务：inline / bullmq / none（none = 提交了也只会在队列里等到超时） */
+  consumer: string
 }
 
 type RawFile = Record<string, unknown>
@@ -258,9 +260,17 @@ export const fetchAgentAvailability = async (signal?: AbortSignal): Promise<Agen
   }
   const body = (await response.json().catch(() => ({}))) as Record<string, unknown>
   const agent = (body.agent ?? {}) as Record<string, unknown>
+  // 后端 camelCase 与 snake_case 同时输出，两种都认，避免命名不一致导致恒为 false
+  const read = (camel: string, snake: string) => agent[camel] ?? agent[snake]
+  const queueMode = str(read('queueMode', 'queue_mode'))
+  const hasConsumer = read('hasConsumer', 'has_consumer') === true
   return {
     enabled: agent.enabled === true,
-    queueMode: str(agent.queue_mode),
-    executionEnabled: agent.execution_enabled === true,
+    queueMode,
+    executionEnabled: read('executionEnabled', 'execution_enabled') === true,
+    // 没有消费方时 consumer=none：提交后只会在队列里等到超时，UI 可据此提前提示
+    consumer: hasConsumer
+      ? queueMode || 'unknown'
+      : str(read('consumer', 'consumer')) || 'none',
   }
 }
